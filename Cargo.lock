@@ -365,6 +365,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "engine-pipeline"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "engine-browser",
+ "engine-core",
+ "proptest",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "engine-social"
 version = "0.1.0"
 dependencies = [

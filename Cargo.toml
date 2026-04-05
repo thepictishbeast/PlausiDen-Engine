@@ -9,6 +9,7 @@ members = [
     "engine-network",
     "engine-social",
     "engine-system",
+    "demo",
 ]
 resolver = "2"
 

@@ -11,3 +11,5 @@ pub mod exif;
 
 pub use gps::{GpsEntry, GpsGenerator, LocationSource, MovementMode};
 pub use wifi::{NetworkCategory, WifiEntry, WifiGenerator};
+pub use cell::{CellEntry, CellGenerator};
+pub use exif::{ExifEntry, ExifGenerator};

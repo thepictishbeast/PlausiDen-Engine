@@ -222,8 +222,8 @@ impl PollutionPipeline {
         // Start from (now - total_span) and walk forward
         let mut artifact_time = now - chrono::Duration::seconds(total_span);
 
-        for i in 0..count {
-            artifact_time = artifact_time + chrono::Duration::seconds(interval_secs[i]);
+        for (i, &interval) in interval_secs.iter().enumerate() {
+            artifact_time += chrono::Duration::seconds(interval);
 
             // Round-robin across generators for variety
             let generator_idx = i % self.generators.len();

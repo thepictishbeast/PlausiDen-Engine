@@ -28,6 +28,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "2"
+md-5 = "0.11"
 tracing = "0.1"
 url = "2"
 fake = { version = "5", features = ["derive"] }

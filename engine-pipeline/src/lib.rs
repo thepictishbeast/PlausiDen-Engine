@@ -1,214 +1,705 @@
 //! # PlausiDen Engine Pipeline
 //!
-//! End-to-end pollution pipeline. Orchestrates generators, timing, validation.
+//! End-to-end pollution pipeline connecting engine data generation to
+//! inject-ready output. This crate orchestrates:
+//!
+//! 1. Generator initialization based on selected [`DataCategory`] values
+//! 2. Organic timing via [`OrganicScheduler`] (no regular intervals)
+//! 3. Defense-in-depth validation via [`paranoia::deep_validate_artifact`]
+//! 4. Metadata stripping (removes `meta` field so output is injection-safe)
+//! 5. Conversion to the JSON format that `plausiden-inject` expects
+//!
+//! # Example
+//!
+//! ```no_run
+//! use engine_pipeline::{PollutionPipeline, InjectionTarget};
+//! use engine_core::profile::UserProfile;
+//! use engine_core::traits::DataCategory;
+//!
+//! let profile = UserProfile::default();
+//! let mut pipeline = PollutionPipeline::new(profile, 42)
+//!     .with_generators(vec![DataCategory::BrowserActivity]);
+//!
+//! let artifacts = pipeline.generate_batch(10);
+//! assert_eq!(artifacts.len(), 10);
+//!
+//! let injectable = pipeline.generate_injectable(5, InjectionTarget::FirefoxHistory);
+//! assert_eq!(injectable.len(), 5);
+//! ```
 
 use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use engine_browser::{CookieGenerator, HistoryGenerator, SearchGenerator};
+use engine_core::error::{EngineError, Result};
 use engine_core::paranoia;
 use engine_core::profile::UserProfile;
 use engine_core::schedule::OrganicScheduler;
-use engine_core::traits::{DataCategory, DataGenerator, GenerationContext};
+use engine_core::traits::{Artifact, DataCategory, DataGenerator, GenerationContext};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, warn};
 
+// ---------------------------------------------------------------------------
+// Enum dispatch
+// ---------------------------------------------------------------------------
+
+/// Wrapper enum for all supported generators.
+///
+/// `DataGenerator::generate` has a generic RNG parameter (`impl RngCore +
+/// CryptoRng`), making the trait not dyn-compatible. This enum provides
+/// concrete dispatch so the pipeline can hold a heterogeneous collection
+/// of generators.
+enum AnyGenerator {
+    /// Browser history entries.
+    History(HistoryGenerator),
+    /// Browser cookies.
+    Cookie(CookieGenerator),
+    /// Search engine queries.
+    Search(SearchGenerator),
+}
+
+impl AnyGenerator {
+    /// Generate a single artifact, delegating to the inner generator.
+    fn generate_artifact(
+        &self,
+        profile: &UserProfile,
+        context: &GenerationContext,
+        rng: &mut ChaCha20Rng,
+    ) -> Result<Box<dyn Artifact>> {
+        match self {
+            Self::History(g) => g.generate(profile, context, rng),
+            Self::Cookie(g) => g.generate(profile, context, rng),
+            Self::Search(g) => g.generate(profile, context, rng),
+        }
+    }
+
+    /// Return the data category for this generator.
+    fn category(&self) -> DataCategory {
+        match self {
+            Self::History(g) => g.category(),
+            Self::Cookie(g) => g.category(),
+            Self::Search(g) => g.category(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+/// A generated artifact ready for optional sanitization and injection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneratedArtifact {
+    /// Data category this artifact belongs to.
     pub category: DataCategory,
+    /// Serialized artifact bytes (JSON, with `meta` field stripped).
     pub bytes: Vec<u8>,
+    /// Simulated timestamp for this artifact.
     pub timestamp: DateTime<Utc>,
 }
 
+/// Target browser database for injection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum InjectionTarget {
+    /// Firefox `places.sqlite` history table.
     FirefoxHistory,
+    /// Firefox `cookies.sqlite` cookie table.
     FirefoxCookies,
+    /// Chrome `History` SQLite database.
     ChromeHistory,
+    /// Chrome `Cookies` SQLite database.
     ChromeCookies,
 }
 
+/// Summary report for a pipeline session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionReport {
+    /// Total number of artifacts successfully generated.
     pub total_generated: usize,
+    /// Artifact counts broken down by category name.
     pub by_category: HashMap<String, usize>,
+    /// Duration of the session in seconds.
     pub duration_secs: u64,
+    /// Number of artifacts that failed paranoia validation.
     pub paranoia_failures: usize,
 }
 
-enum GeneratorKind {
-    History(HistoryGenerator),
-    Cookies(CookieGenerator),
-    Searches(SearchGenerator),
-}
+// ---------------------------------------------------------------------------
+// Pipeline
+// ---------------------------------------------------------------------------
 
-impl GeneratorKind {
-    fn generate_artifact(&self, profile: &UserProfile, ctx: &GenerationContext, rng: &mut ChaCha20Rng) -> engine_core::error::Result<Box<dyn engine_core::traits::Artifact>> {
-        match self {
-            Self::History(g) => g.generate(profile, ctx, rng),
-            Self::Cookies(g) => g.generate(profile, ctx, rng),
-            Self::Searches(g) => g.generate(profile, ctx, rng),
-        }
-    }
-
-    fn data_category(&self) -> DataCategory {
-        match self {
-            Self::History(g) => g.category(),
-            Self::Cookies(g) => g.category(),
-            Self::Searches(g) => g.category(),
-        }
-    }
-}
-
+/// Orchestrates data generation with organic timing, paranoia validation,
+/// and metadata stripping.
 pub struct PollutionPipeline {
+    /// User behavioral profile driving generation patterns.
     profile: UserProfile,
-    _scheduler: OrganicScheduler,
-    generators: Vec<GeneratorKind>,
+    /// Organic timing scheduler (circadian rhythm, jitter).
+    scheduler: OrganicScheduler,
+    /// Active data generators (one per sub-type).
+    generators: Vec<AnyGenerator>,
+    /// Deterministic, cryptographically secure RNG.
     rng: ChaCha20Rng,
 }
 
 impl PollutionPipeline {
+    /// Create a new pipeline with the given profile and deterministic seed.
+    ///
+    /// The pipeline starts with no generators; call
+    /// [`with_generators`](Self::with_generators) to enable data categories.
     pub fn new(profile: UserProfile, seed: u64) -> Self {
-        let scheduler = OrganicScheduler::new(profile.activity_schedule.clone(), profile.risk_level);
-        Self { profile, _scheduler: scheduler, generators: Vec::new(), rng: ChaCha20Rng::seed_from_u64(seed) }
+        let scheduler = OrganicScheduler::new(
+            profile.activity_schedule.clone(),
+            profile.risk_level,
+        );
+        Self {
+            profile,
+            scheduler,
+            generators: Vec::new(),
+            rng: ChaCha20Rng::seed_from_u64(seed),
+        }
     }
 
+    /// Enable generators for the specified data categories.
+    ///
+    /// Currently supports [`DataCategory::BrowserActivity`] (history,
+    /// cookies, searches). Other categories will be added as their
+    /// engine crates move beyond scaffold status.
     pub fn with_generators(mut self, categories: Vec<DataCategory>) -> Self {
-        for cat in categories {
-            if cat == DataCategory::BrowserActivity {
-                self.generators.push(GeneratorKind::History(HistoryGenerator::new()));
-                self.generators.push(GeneratorKind::Cookies(CookieGenerator::new()));
-                self.generators.push(GeneratorKind::Searches(SearchGenerator::new()));
+        for category in &categories {
+            match category {
+                DataCategory::BrowserActivity => {
+                    self.generators
+                        .push(AnyGenerator::History(HistoryGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::Cookie(CookieGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::Search(SearchGenerator::new()));
+                }
+                other => {
+                    warn!(
+                        category = ?other,
+                        "category not yet implemented -- skipping"
+                    );
+                }
             }
         }
         self
     }
 
+    /// Generate a batch of artifacts with organic timing.
+    ///
+    /// Timestamps are spread backward from the current wall-clock time using
+    /// organic intervals, so all artifacts appear to have been created in the
+    /// recent past. Each artifact is validated through
+    /// [`paranoia::deep_validate_artifact`] before inclusion. Failed
+    /// artifacts are logged and skipped.
     pub fn generate_batch(&mut self, count: usize) -> Vec<GeneratedArtifact> {
         let mut artifacts = Vec::with_capacity(count);
-        let ctx = GenerationContext::new();
 
-        for _ in 0..count {
-            if self.generators.is_empty() { break; }
-            let idx = rand::Rng::gen_range(&mut self.rng, 0..self.generators.len());
-            let mut rng_clone = self.rng.clone();
-            let generator = &self.generators[idx];
-
-            match generator.generate_artifact(&self.profile, &ctx, &mut rng_clone) {
-                Ok(artifact) => {
-                    if let Err(e) = paranoia::deep_validate_artifact(artifact.as_ref()) {
-                        tracing::warn!("Paranoia: {e}");
-                        continue;
-                    }
-                    match artifact.to_bytes() {
-                        Ok(bytes) => {
-                            let cleaned = strip_meta(&bytes);
-                            artifacts.push(GeneratedArtifact {
-                                category: generator.data_category(),
-                                bytes: cleaned,
-                                timestamp: artifact.metadata().created_at,
-                            });
-                        }
-                        Err(e) => tracing::warn!("Serialize: {e}"),
-                    }
-                }
-                Err(e) => tracing::warn!("Generate: {e}"),
-            }
-            // Advance RNG state
-            use rand::RngCore;
-            self.rng.next_u64();
+        if self.generators.is_empty() {
+            warn!("no generators configured -- returning empty batch");
+            return artifacts;
         }
 
+        // Pre-compute organic intervals, then spread timestamps backward
+        // from "now". This ensures all generated timestamps are in the
+        // recent past, passing paranoia validation (which rejects
+        // timestamps >1h in the future).
+        let now = Utc::now();
+        let mut interval_secs = Vec::with_capacity(count);
+        let mut cursor = now;
+        for _ in 0..count {
+            let next = self.scheduler.next_timestamp(cursor, &mut self.rng);
+            let delta = (next - cursor).num_seconds();
+            interval_secs.push(delta);
+            cursor = next;
+        }
+
+        // Total time span -- all intervals summed
+        let total_span: i64 = interval_secs.iter().sum();
+        // Start from (now - total_span) and walk forward
+        let mut artifact_time = now - chrono::Duration::seconds(total_span);
+
+        for i in 0..count {
+            artifact_time = artifact_time + chrono::Duration::seconds(interval_secs[i]);
+
+            // Round-robin across generators for variety
+            let generator_idx = i % self.generators.len();
+            let generator = &self.generators[generator_idx];
+
+            let context = GenerationContext {
+                now: artifact_time,
+                session_artifact_count: i as u64,
+                total_artifact_count: i as u64,
+            };
+
+            match generator.generate_artifact(&self.profile, &context, &mut self.rng) {
+                Ok(artifact) => {
+                    // Defense-in-depth: paranoia validation on every output
+                    if let Err(e) = paranoia::deep_validate_artifact(artifact.as_ref()) {
+                        warn!(
+                            index = i,
+                            error = %e,
+                            "artifact failed paranoia validation -- skipping"
+                        );
+                        continue;
+                    }
+
+                    match artifact.to_bytes() {
+                        Ok(raw_bytes) => {
+                            let timestamp = artifact.metadata().created_at;
+                            let category = generator.category();
+
+                            // Strip internal metadata before storing
+                            let bytes = strip_meta_field(&raw_bytes)
+                                .unwrap_or(raw_bytes);
+
+                            artifacts.push(GeneratedArtifact {
+                                category,
+                                bytes,
+                                timestamp,
+                            });
+                        }
+                        Err(e) => {
+                            warn!(
+                                index = i,
+                                error = %e,
+                                "artifact serialization failed -- skipping"
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        index = i,
+                        error = %e,
+                        "generation failed -- skipping"
+                    );
+                }
+            }
+        }
+
+        debug!(
+            count = artifacts.len(),
+            requested = count,
+            "batch generation complete"
+        );
         artifacts
     }
 
-    pub fn generate_injectable(&mut self, count: usize, _target: InjectionTarget) -> Vec<Vec<u8>> {
-        self.generate_batch(count).into_iter().map(|a| a.bytes).collect()
+    /// Generate artifacts as sanitized JSON ready for injection.
+    ///
+    /// The output bytes have the `meta` field stripped so that internal
+    /// engine metadata never reaches the target database. The result is
+    /// the exact JSON that `plausiden-inject` expects.
+    pub fn generate_injectable(
+        &mut self,
+        count: usize,
+        target: InjectionTarget,
+    ) -> Vec<Vec<u8>> {
+        let category_filter = target_to_category(target);
+        let raw = self.generate_batch(count);
+
+        raw.into_iter()
+            .filter(|a| a.category == category_filter)
+            .map(|a| a.bytes)
+            .collect()
     }
 
+    /// Run a timed session, generating artifacts at organic intervals
+    /// until `duration_secs` of simulated time elapses.
+    ///
+    /// Returns a [`SessionReport`] summarizing what was generated.
     pub fn run_session(&mut self, duration_secs: u64) -> SessionReport {
-        let start = std::time::Instant::now();
-        let mut total = 0usize;
+        let start = Utc::now();
+        let end = start + chrono::Duration::seconds(duration_secs as i64);
+
+        let mut total_generated: usize = 0;
         let mut by_category: HashMap<String, usize> = HashMap::new();
-        let mut failures = 0usize;
+        let mut paranoia_failures: usize = 0;
 
-        loop {
-            if duration_secs > 0 && start.elapsed().as_secs() >= duration_secs { break; }
-            let batch = self.generate_batch(1);
-            if batch.is_empty() { failures += 1; }
-            for a in &batch {
-                total += 1;
-                *by_category.entry(format!("{:?}", a.category)).or_default() += 1;
+        if self.generators.is_empty() {
+            warn!("no generators configured -- session produces nothing");
+            return SessionReport {
+                total_generated: 0,
+                by_category,
+                duration_secs,
+                paranoia_failures: 0,
+            };
+        }
+
+        let mut current_time = start;
+        let mut iteration: usize = 0;
+
+        while current_time < end {
+            let generator_idx = iteration % self.generators.len();
+            let generator = &self.generators[generator_idx];
+
+            // Use a context anchored at the session start so timestamps
+            // stay in the past relative to the paranoia >1h-future check.
+            let context = GenerationContext {
+                now: start,
+                session_artifact_count: total_generated as u64,
+                total_artifact_count: total_generated as u64,
+            };
+
+            match generator.generate_artifact(&self.profile, &context, &mut self.rng) {
+                Ok(artifact) => {
+                    if let Err(e) = paranoia::deep_validate_artifact(artifact.as_ref()) {
+                        debug!(
+                            error = %e,
+                            "paranoia failure in session"
+                        );
+                        paranoia_failures += 1;
+                    } else {
+                        let cat_name = format!("{:?}", generator.category());
+                        *by_category.entry(cat_name).or_insert(0) += 1;
+                        total_generated += 1;
+                    }
+                }
+                Err(e) => {
+                    debug!(error = %e, "generation error in session");
+                    paranoia_failures += 1;
+                }
             }
-            if duration_secs == 0 { break; }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+
+            // Advance simulated time with organic timing
+            current_time = self.scheduler.next_timestamp(current_time, &mut self.rng);
+            iteration += 1;
         }
 
-        SessionReport { total_generated: total, by_category, duration_secs: start.elapsed().as_secs(), paranoia_failures: failures }
+        info!(
+            total = total_generated,
+            failures = paranoia_failures,
+            duration_secs = duration_secs,
+            "session complete"
+        );
+
+        SessionReport {
+            total_generated,
+            by_category,
+            duration_secs,
+            paranoia_failures,
+        }
     }
 }
 
-fn strip_meta(bytes: &[u8]) -> Vec<u8> {
-    if let Ok(mut val) = serde_json::from_slice::<serde_json::Value>(bytes) {
-        if let Some(obj) = val.as_object_mut() {
-            obj.remove("meta");
-            obj.remove("artifact_id");
-        }
-        serde_json::to_vec(&val).unwrap_or_else(|_| bytes.to_vec())
-    } else {
-        bytes.to_vec()
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Map an [`InjectionTarget`] to the [`DataCategory`] it consumes.
+fn target_to_category(target: InjectionTarget) -> DataCategory {
+    match target {
+        InjectionTarget::FirefoxHistory
+        | InjectionTarget::FirefoxCookies
+        | InjectionTarget::ChromeHistory
+        | InjectionTarget::ChromeCookies => DataCategory::BrowserActivity,
     }
 }
+
+/// Strip the `meta` field from JSON artifact bytes.
+///
+/// This mirrors the sanitization that `inject-core`'s sanitizer performs.
+/// By doing it here in the pipeline, we guarantee the output is
+/// injection-safe before it ever leaves the engine boundary.
+fn strip_meta_field(bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut value: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(EngineError::Serialization)?;
+
+    if let serde_json::Value::Object(ref mut map) = value {
+        map.remove("meta");
+    }
+
+    serde_json::to_vec(&value).map_err(EngineError::Serialization)
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use engine_core::profile::UserProfile;
+    use engine_core::traits::DataCategory;
+    use std::collections::HashSet;
 
-    #[test]
-    fn test_generate_browser() {
-        let mut p = PollutionPipeline::new(UserProfile::default(), 42)
-            .with_generators(vec![DataCategory::BrowserActivity]);
-        let a = p.generate_batch(10);
-        assert!(!a.is_empty());
+    /// Helper: build a pipeline with browser generators and a deterministic seed.
+    fn browser_pipeline(seed: u64) -> PollutionPipeline {
+        PollutionPipeline::new(UserProfile::default(), seed)
+            .with_generators(vec![DataCategory::BrowserActivity])
     }
 
+    // -----------------------------------------------------------------
+    // Core functionality
+    // -----------------------------------------------------------------
+
     #[test]
-    fn test_meta_stripped() {
-        let mut p = PollutionPipeline::new(UserProfile::default(), 42)
-            .with_generators(vec![DataCategory::BrowserActivity]);
-        for a in p.generate_batch(5) {
-            let v: serde_json::Value = serde_json::from_slice(&a.bytes).unwrap();
-            assert!(v.get("meta").is_none());
+    fn test_pipeline_generates_artifacts_for_all_browser_categories() {
+        let mut pipeline = browser_pipeline(42);
+        let artifacts = pipeline.generate_batch(30);
+
+        // Should have generated all 30
+        assert_eq!(
+            artifacts.len(),
+            30,
+            "pipeline must produce exactly the requested number of artifacts"
+        );
+
+        // All should be BrowserActivity (since we only enabled that)
+        for artifact in &artifacts {
+            assert_eq!(
+                artifact.category,
+                DataCategory::BrowserActivity,
+                "all artifacts must be BrowserActivity"
+            );
         }
     }
 
     #[test]
-    fn test_injectable() {
-        let mut p = PollutionPipeline::new(UserProfile::default(), 42)
-            .with_generators(vec![DataCategory::BrowserActivity]);
-        let i = p.generate_injectable(5, InjectionTarget::FirefoxHistory);
-        assert!(!i.is_empty());
+    fn test_paranoia_validation_passes_on_all_outputs() {
+        let mut pipeline = browser_pipeline(42);
+        let batch = pipeline.generate_batch(50);
+
+        assert_eq!(batch.len(), 50, "all 50 artifacts must pass paranoia");
+
+        for (i, artifact) in batch.iter().enumerate() {
+            // Parse back to verify the bytes are valid JSON
+            let value: serde_json::Value = serde_json::from_slice(&artifact.bytes)
+                .unwrap_or_else(|e| panic!("artifact {i} is not valid JSON: {e}"));
+
+            // Verify it is a non-empty JSON object
+            assert!(
+                value.is_object(),
+                "artifact {i} must be a JSON object"
+            );
+            assert!(
+                !value.as_object().unwrap().is_empty(),
+                "artifact {i} must not be empty"
+            );
+        }
     }
 
     #[test]
-    fn test_session() {
-        let mut p = PollutionPipeline::new(UserProfile::default(), 42)
-            .with_generators(vec![DataCategory::BrowserActivity]);
-        let r = p.run_session(0);
-        assert!(r.total_generated > 0 || r.paranoia_failures > 0);
+    fn test_organic_timing_produces_variable_intervals() {
+        let mut pipeline = browser_pipeline(42);
+        let artifacts = pipeline.generate_batch(20);
+
+        assert!(
+            artifacts.len() >= 2,
+            "need at least 2 artifacts to compare intervals"
+        );
+
+        let timestamps: Vec<i64> = artifacts.iter().map(|a| a.timestamp.timestamp()).collect();
+        let intervals: Vec<i64> = timestamps.windows(2).map(|w| w[1] - w[0]).collect();
+
+        // Intervals should not all be identical (organic jitter)
+        let unique_intervals: HashSet<i64> = intervals.iter().copied().collect();
+        assert!(
+            unique_intervals.len() > 1,
+            "organic timing must produce variable intervals, got {:?}",
+            intervals
+        );
     }
 
     #[test]
-    fn test_stress_1000() {
-        let mut p = PollutionPipeline::new(UserProfile::default(), 42)
-            .with_generators(vec![DataCategory::BrowserActivity]);
-        let a = p.generate_batch(1000);
-        assert!(a.len() > 900, "got {}", a.len());
+    fn test_injectable_output_is_valid_json_without_meta() {
+        let mut pipeline = browser_pipeline(42);
+        let injectable = pipeline.generate_injectable(20, InjectionTarget::FirefoxHistory);
+
+        assert_eq!(
+            injectable.len(),
+            20,
+            "must produce 20 injectable outputs"
+        );
+
+        for (i, bytes) in injectable.iter().enumerate() {
+            let value: serde_json::Value = serde_json::from_slice(bytes)
+                .unwrap_or_else(|e| panic!("injectable {i} is not valid JSON: {e}"));
+
+            // The "meta" field must be stripped
+            assert!(
+                value.get("meta").is_none(),
+                "injectable {i} must not contain 'meta' field"
+            );
+
+            // Should still have real payload fields
+            assert!(
+                value.is_object(),
+                "injectable {i} must be a JSON object"
+            );
+            let obj = value.as_object().unwrap();
+            assert!(
+                !obj.is_empty(),
+                "injectable {i} must not be an empty object"
+            );
+        }
     }
 
     #[test]
-    fn test_empty() {
-        let mut p = PollutionPipeline::new(UserProfile::default(), 42);
-        assert!(p.generate_batch(10).is_empty());
+    fn test_session_report_counts_match() {
+        let mut pipeline = browser_pipeline(42);
+
+        // Run a short simulated session (300 simulated seconds)
+        let report = pipeline.run_session(300);
+
+        // Total must equal the sum of per-category counts
+        let sum: usize = report.by_category.values().sum();
+        assert_eq!(
+            report.total_generated, sum,
+            "total_generated ({}) must equal sum of by_category ({})",
+            report.total_generated, sum
+        );
+
+        // Duration must match requested
+        assert_eq!(report.duration_secs, 300);
+
+        // Should have generated at least some artifacts in 300s
+        // (default Medium risk = ~2min base interval, so 300s should get several)
+        assert!(
+            report.total_generated > 0,
+            "300s session must generate at least one artifact"
+        );
+    }
+
+    #[test]
+    fn test_stress_1000_artifacts() {
+        let mut pipeline = browser_pipeline(12345);
+        let artifacts = pipeline.generate_batch(1000);
+
+        // All 1000 should succeed (no paranoia failures expected from
+        // well-implemented browser generators)
+        assert_eq!(
+            artifacts.len(),
+            1000,
+            "stress test: expected 1000 artifacts, got {}",
+            artifacts.len()
+        );
+
+        // Every artifact must be valid JSON with no meta field
+        for (i, artifact) in artifacts.iter().enumerate() {
+            let value: serde_json::Value = serde_json::from_slice(&artifact.bytes)
+                .unwrap_or_else(|e| panic!("artifact {i} failed JSON parse: {e}"));
+            assert!(
+                value.get("meta").is_none(),
+                "artifact {i} must not contain meta field"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Edge cases
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_empty_generators_produces_empty_batch() {
+        let mut pipeline = PollutionPipeline::new(UserProfile::default(), 42);
+        // No .with_generators() call
+        let artifacts = pipeline.generate_batch(10);
+        assert!(artifacts.is_empty(), "no generators = no artifacts");
+    }
+
+    #[test]
+    fn test_empty_generators_session_report() {
+        let mut pipeline = PollutionPipeline::new(UserProfile::default(), 42);
+        let report = pipeline.run_session(60);
+        assert_eq!(report.total_generated, 0);
+        assert_eq!(report.paranoia_failures, 0);
+        assert_eq!(report.duration_secs, 60);
+    }
+
+    #[test]
+    fn test_different_seeds_produce_different_output() {
+        let mut p1 = browser_pipeline(111);
+        let mut p2 = browser_pipeline(222);
+
+        let batch1 = p1.generate_batch(5);
+        let batch2 = p2.generate_batch(5);
+
+        // With different seeds, at least some artifacts should differ
+        let differ = batch1
+            .iter()
+            .zip(batch2.iter())
+            .any(|(a, b)| a.bytes != b.bytes);
+        assert!(differ, "different seeds must produce different artifacts");
+    }
+
+    #[test]
+    fn test_injection_targets_all_map_to_browser() {
+        let targets = [
+            InjectionTarget::FirefoxHistory,
+            InjectionTarget::FirefoxCookies,
+            InjectionTarget::ChromeHistory,
+            InjectionTarget::ChromeCookies,
+        ];
+        for target in targets {
+            assert_eq!(
+                target_to_category(target),
+                DataCategory::BrowserActivity,
+                "{:?} must map to BrowserActivity",
+                target,
+            );
+        }
+    }
+
+    #[test]
+    fn test_strip_meta_field_preserves_payload() {
+        let input = serde_json::json!({
+            "meta": {"id": "should-be-removed", "category": "BrowserActivity"},
+            "url": "https://example.org/article",
+            "title": "Test Article",
+            "visit_count": 3,
+        });
+        let bytes = serde_json::to_vec(&input).unwrap();
+        let stripped = strip_meta_field(&bytes).unwrap();
+        let output: serde_json::Value = serde_json::from_slice(&stripped).unwrap();
+
+        assert!(output.get("meta").is_none(), "meta must be removed");
+        assert_eq!(output["url"], "https://example.org/article");
+        assert_eq!(output["title"], "Test Article");
+        assert_eq!(output["visit_count"], 3);
+    }
+
+    #[test]
+    fn test_strip_meta_field_handles_no_meta() {
+        let input = serde_json::json!({"url": "https://test.com"});
+        let bytes = serde_json::to_vec(&input).unwrap();
+        let stripped = strip_meta_field(&bytes).unwrap();
+        let output: serde_json::Value = serde_json::from_slice(&stripped).unwrap();
+        assert_eq!(output["url"], "https://test.com");
+    }
+
+    #[test]
+    fn test_injectable_batch_count_matches_request() {
+        let mut pipeline = browser_pipeline(42);
+        // Request 30 -- all generators produce BrowserActivity, so all
+        // should pass the category filter.
+        let injectable = pipeline.generate_injectable(30, InjectionTarget::ChromeCookies);
+        assert_eq!(
+            injectable.len(),
+            30,
+            "all 30 requested artifacts should pass the category filter"
+        );
+    }
+
+    #[test]
+    fn test_generated_artifact_timestamps_are_plausible() {
+        let mut pipeline = browser_pipeline(42);
+        let artifacts = pipeline.generate_batch(20);
+        let now = Utc::now();
+
+        for (i, artifact) in artifacts.iter().enumerate() {
+            // Timestamp should be recent (within a day, accounting for
+            // backward spread and generator jitter)
+            let age = now.signed_duration_since(artifact.timestamp);
+            assert!(
+                age.num_hours().abs() < 24,
+                "artifact {i} timestamp {ts} is too far from now ({now})",
+                ts = artifact.timestamp,
+            );
+        }
     }
 }

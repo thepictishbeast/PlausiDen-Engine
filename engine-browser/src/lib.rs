@@ -23,3 +23,5 @@ pub use cookies::CookieGenerator;
 pub use searches::SearchGenerator;
 pub use bookmarks::BookmarkGenerator;
 pub use downloads::DownloadGenerator;
+pub use autofill::AutofillGenerator;
+pub use localstorage::LocalStorageGenerator;

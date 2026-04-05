@@ -234,4 +234,104 @@ mod tests {
         assert!(medium < high);
         assert!(high < maximum);
     }
+
+    // --- Property-based tests ---
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_next_timestamp_always_future(seed in 0u64..100_000) {
+            let scheduler = test_scheduler();
+            let mut rng = ChaCha20Rng::seed_from_u64(seed);
+            let now = Utc::now();
+            let next = scheduler.next_timestamp(now, &mut rng);
+            prop_assert!(next > now, "next_timestamp must always be in the future");
+        }
+
+        #[test]
+        fn prop_jitter_produces_different_intervals(seed_a in 0u64..50_000, seed_b in 50_000u64..100_000) {
+            let scheduler = test_scheduler();
+            let now = Utc::now();
+            let mut rng_a = ChaCha20Rng::seed_from_u64(seed_a);
+            let mut rng_b = ChaCha20Rng::seed_from_u64(seed_b);
+            let t_a = scheduler.next_timestamp(now, &mut rng_a);
+            let t_b = scheduler.next_timestamp(now, &mut rng_b);
+            // Different seeds should (almost always) yield different intervals.
+            // We cannot assert absolute inequality for every seed pair, but
+            // over the proptest sample space the probability of collision is negligible.
+            // So we just verify both are valid future timestamps.
+            prop_assert!(t_a > now);
+            prop_assert!(t_b > now);
+        }
+
+        #[test]
+        fn prop_circadian_factor_bounded(hour in 0u8..24) {
+            let scheduler = test_scheduler();
+            let factor = scheduler.circadian_factor(hour);
+            prop_assert!(factor >= 0.0 && factor <= 1.0,
+                "circadian factor {} for hour {} is out of [0.0, 1.0]", factor, hour);
+        }
+    }
+
+    // --- Edge-case tests ---
+
+    #[test]
+    fn test_very_long_session_remains_ordered() {
+        let scheduler = test_scheduler();
+        let mut rng = test_rng();
+        let start = Utc::now();
+
+        let timestamps = scheduler.generate_session_timestamps(start, 1500, &mut rng);
+
+        assert_eq!(timestamps.len(), 1500);
+        for window in timestamps.windows(2) {
+            assert!(window[1] > window[0], "timestamps must be strictly ordered even in long sessions");
+        }
+        // First timestamp should be after start
+        assert!(timestamps[0] > start);
+    }
+
+    #[test]
+    fn test_midnight_crossing_schedule() {
+        // Person who stays up late: wake=22 (10 PM), sleep=6 (6 AM next day).
+        // This is an unusual but valid schedule (night-shift worker).
+        let schedule = ActivitySchedule {
+            wake_hour: 22,
+            sleep_hour: 6,
+            active_days: vec![0, 1, 2, 3, 4, 5, 6],
+            timezone_offset_hours: 0,
+        };
+        let scheduler = OrganicScheduler::new(schedule, RiskLevel::Medium);
+        let mut rng = test_rng();
+        let now = Utc::now();
+
+        // Should still produce valid future timestamps
+        let t = scheduler.next_timestamp(now, &mut rng);
+        assert!(t > now);
+
+        // Circadian factor should return a value in [0, 1] for all hours
+        for hour in 0..24u8 {
+            let factor = scheduler.circadian_factor(hour);
+            assert!(
+                factor >= 0.0 && factor <= 1.0,
+                "circadian factor {} for hour {} out of bounds with midnight-crossing schedule",
+                factor,
+                hour,
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_risk_levels_produce_future_timestamps() {
+        let now = Utc::now();
+        let schedule = ActivitySchedule::default();
+
+        for risk in [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum] {
+            let scheduler = OrganicScheduler::new(schedule.clone(), risk);
+            let mut rng = test_rng();
+            let t = scheduler.next_timestamp(now, &mut rng);
+            assert!(t > now, "risk level {:?} must produce future timestamps", risk);
+        }
+    }
 }

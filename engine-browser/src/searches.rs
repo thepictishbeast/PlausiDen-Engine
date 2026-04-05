@@ -138,4 +138,82 @@ mod tests {
         let unique: std::collections::HashSet<_> = times.iter().map(|t| t.timestamp()).collect();
         assert!(unique.len() > 1, "timestamps should have jitter");
     }
+
+    #[test]
+    fn test_search_engine_distribution() {
+        let generator = SearchGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+
+        let mut google = 0u32;
+        let mut ddg = 0u32;
+        let mut bing = 0u32;
+        let total = 1000u32;
+
+        for seed in 0..total as u64 {
+            let mut rng = seeded_rng(seed);
+            let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+            let bytes = artifact.to_bytes().unwrap();
+            let entry: SearchEntry = serde_json::from_slice(&bytes).unwrap();
+
+            match entry.search_engine.as_str() {
+                "google.com" => google += 1,
+                "duckduckgo.com" => ddg += 1,
+                "bing.com" => bing += 1,
+                other => panic!("unexpected search engine: {other}"),
+            }
+        }
+
+        // With uniform 1/3 selection among 3 engines, each should be ~33%.
+        // Google should appear in a substantial portion.
+        assert!(
+            google > 200,
+            "Google should appear significantly: got {google}/{total}"
+        );
+        assert!(
+            ddg > 200,
+            "DuckDuckGo should appear significantly: got {ddg}/{total}"
+        );
+        assert!(
+            bing > 200,
+            "Bing should appear significantly: got {bing}/{total}"
+        );
+        assert_eq!(
+            google + ddg + bing,
+            total,
+            "all entries should use one of the three engines"
+        );
+    }
+
+    #[test]
+    fn test_100_searches_all_valid() {
+        let generator = SearchGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+
+        for seed in 0..100u64 {
+            let mut rng = seeded_rng(seed);
+            let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+            artifact.validate_plausibility().unwrap_or_else(|e| {
+                panic!("search {seed} failed plausibility: {e}");
+            });
+            let bytes = artifact.to_bytes().unwrap();
+            let entry: SearchEntry = serde_json::from_slice(&bytes).unwrap();
+
+            assert!(!entry.query.is_empty(), "seed {seed}: empty query");
+            assert!(
+                !entry.search_engine.is_empty(),
+                "seed {seed}: empty search engine"
+            );
+            assert!(
+                entry.search_url.starts_with("https://"),
+                "seed {seed}: search URL must be HTTPS: {}",
+                entry.search_url,
+            );
+            assert!(
+                entry.search_time <= ctx.now,
+                "seed {seed}: search time in the future"
+            );
+        }
+    }
 }

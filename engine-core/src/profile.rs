@@ -286,3 +286,205 @@ impl Default for UserProfileBuilder {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- Property-based tests ---
+
+    use proptest::prelude::*;
+
+    fn arb_risk_level() -> impl Strategy<Value = RiskLevel> {
+        prop_oneof![
+            Just(RiskLevel::Low),
+            Just(RiskLevel::Medium),
+            Just(RiskLevel::High),
+            Just(RiskLevel::Maximum),
+        ]
+    }
+
+    fn arb_occupation() -> impl Strategy<Value = OccupationCategory> {
+        prop_oneof![
+            Just(OccupationCategory::General),
+            Just(OccupationCategory::Student),
+            Just(OccupationCategory::Academic),
+            Just(OccupationCategory::Journalist),
+            Just(OccupationCategory::LegalProfessional),
+            Just(OccupationCategory::TechWorker),
+            Just(OccupationCategory::HealthcareWorker),
+            Just(OccupationCategory::TradesWorker),
+            Just(OccupationCategory::Retired),
+        ]
+    }
+
+    fn arb_os_family() -> impl Strategy<Value = OsFamily> {
+        prop_oneof![
+            Just(OsFamily::Linux),
+            Just(OsFamily::MacOS),
+            Just(OsFamily::Windows),
+            Just(OsFamily::Android),
+            Just(OsFamily::IOS),
+        ]
+    }
+
+    fn arb_browser() -> impl Strategy<Value = BrowserType> {
+        prop_oneof![
+            Just(BrowserType::Firefox),
+            Just(BrowserType::Chrome),
+            Just(BrowserType::Safari),
+            Just(BrowserType::Edge),
+            Just(BrowserType::Brave),
+        ]
+    }
+
+    fn arb_interest() -> impl Strategy<Value = InterestCategory> {
+        prop_oneof![
+            Just(InterestCategory::News),
+            Just(InterestCategory::Technology),
+            Just(InterestCategory::Sports),
+            Just(InterestCategory::Entertainment),
+            Just(InterestCategory::Shopping),
+            Just(InterestCategory::Social),
+            Just(InterestCategory::Academic),
+            Just(InterestCategory::Finance),
+            Just(InterestCategory::Health),
+            Just(InterestCategory::Travel),
+            Just(InterestCategory::Food),
+            Just(InterestCategory::Gaming),
+            Just(InterestCategory::Music),
+            Just(InterestCategory::Government),
+            Just(InterestCategory::Legal),
+            Just(InterestCategory::Weather),
+            Just(InterestCategory::Reference),
+            Just(InterestCategory::Documentation),
+        ]
+    }
+
+    fn arb_demographic() -> impl Strategy<Value = DemographicProfile> {
+        (
+            (1u8..100, 1u8..100),
+            "[a-z]{2}",
+            "[A-Z]{2}",
+            arb_occupation(),
+        )
+            .prop_map(|(age_range, language, country, occupation)| DemographicProfile {
+                age_range,
+                language,
+                country,
+                occupation,
+            })
+    }
+
+    fn arb_device() -> impl Strategy<Value = DeviceProfile> {
+        (
+            arb_os_family(),
+            prop::collection::vec(arb_browser(), 1..4),
+            any::<bool>(),
+            any::<bool>(),
+        )
+            .prop_map(|(os, browsers, has_gps, has_cellular)| DeviceProfile {
+                os,
+                browsers,
+                has_gps,
+                has_cellular,
+                available_storage_bytes: 10 * 1024 * 1024 * 1024,
+            })
+    }
+
+    fn arb_activity() -> impl Strategy<Value = ActivitySchedule> {
+        (
+            0u8..24,
+            0u8..24,
+            prop::collection::vec(0u8..7, 1..8),
+            -12i8..=12,
+        )
+            .prop_map(|(wake, sleep, active_days, tz_offset)| ActivitySchedule {
+                wake_hour: wake,
+                sleep_hour: sleep,
+                active_days,
+                timezone_offset_hours: tz_offset,
+            })
+    }
+
+    fn arb_user_profile() -> impl Strategy<Value = UserProfile> {
+        (
+            arb_demographic(),
+            arb_device(),
+            arb_activity(),
+            prop::collection::vec(arb_interest(), 0..6),
+            arb_risk_level(),
+        )
+            .prop_map(|(demographic, device, activity_schedule, interests, risk_level)| {
+                UserProfile {
+                    demographic,
+                    device,
+                    activity_schedule,
+                    locale: Locale::default(),
+                    interests,
+                    risk_level,
+                }
+            })
+    }
+
+    proptest! {
+        #[test]
+        fn prop_user_profile_serde_roundtrip(profile in arb_user_profile()) {
+            let json = serde_json::to_string(&profile).expect("serialize");
+            let roundtripped: UserProfile = serde_json::from_str(&json).expect("deserialize");
+
+            // Verify key fields survived the roundtrip
+            prop_assert_eq!(&profile.demographic.language, &roundtripped.demographic.language);
+            prop_assert_eq!(&profile.demographic.country, &roundtripped.demographic.country);
+            prop_assert_eq!(profile.demographic.age_range, roundtripped.demographic.age_range);
+            prop_assert_eq!(profile.risk_level, roundtripped.risk_level);
+            prop_assert_eq!(profile.interests.len(), roundtripped.interests.len());
+            prop_assert_eq!(profile.device.browsers.len(), roundtripped.device.browsers.len());
+            prop_assert_eq!(profile.activity_schedule.wake_hour, roundtripped.activity_schedule.wake_hour);
+            prop_assert_eq!(profile.activity_schedule.sleep_hour, roundtripped.activity_schedule.sleep_hour);
+        }
+    }
+
+    #[test]
+    fn test_risk_level_rate_multiplier_strictly_ordered() {
+        let low = RiskLevel::Low.rate_multiplier();
+        let medium = RiskLevel::Medium.rate_multiplier();
+        let high = RiskLevel::High.rate_multiplier();
+        let maximum = RiskLevel::Maximum.rate_multiplier();
+
+        assert!(low < medium, "Low ({low}) must be < Medium ({medium})");
+        assert!(medium < high, "Medium ({medium}) must be < High ({high})");
+        assert!(high < maximum, "High ({high}) must be < Maximum ({maximum})");
+    }
+
+    #[test]
+    fn test_empty_interests_is_valid_profile() {
+        let profile = UserProfileBuilder::new()
+            .interests(vec![])
+            .build();
+        assert!(profile.interests.is_empty());
+        // Should still serialize cleanly
+        let json = serde_json::to_string(&profile).unwrap();
+        let rt: UserProfile = serde_json::from_str(&json).unwrap();
+        assert!(rt.interests.is_empty());
+    }
+
+    #[test]
+    fn test_extreme_risk_level_maximum() {
+        let profile = UserProfileBuilder::new()
+            .risk_level(RiskLevel::Maximum)
+            .build();
+        assert_eq!(profile.risk_level, RiskLevel::Maximum);
+        assert_eq!(profile.risk_level.rate_multiplier(), 10.0);
+    }
+
+    #[test]
+    fn test_builder_defaults_match_direct_default() {
+        let built = UserProfileBuilder::new().build();
+        let direct = UserProfile::default();
+
+        assert_eq!(built.risk_level, direct.risk_level);
+        assert_eq!(built.interests.len(), direct.interests.len());
+        assert_eq!(built.demographic.language, direct.demographic.language);
+    }
+}

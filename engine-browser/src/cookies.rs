@@ -264,7 +264,6 @@ mod tests {
         let generator = CookieGenerator::new();
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
-        let mut rng = seeded_rng(42);
 
         for seed in 0..20 {
             let mut rng = seeded_rng(seed);
@@ -277,5 +276,83 @@ mod tests {
                 "cookie must not expire before creation"
             );
         }
+    }
+
+    #[test]
+    fn test_cookie_name_from_real_corpus() {
+        let known_names: std::collections::HashSet<&str> =
+            COMMON_COOKIES.iter().map(|(n, _)| *n).collect();
+
+        let generator = CookieGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+
+        for seed in 0..200u64 {
+            let mut rng = seeded_rng(seed);
+            let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+            let bytes = artifact.to_bytes().unwrap();
+            let cookie: CookieEntry = serde_json::from_slice(&bytes).unwrap();
+
+            assert!(
+                known_names.contains(cookie.name.as_str()),
+                "cookie name '{}' (seed {seed}) not found in COMMON_COOKIES corpus",
+                cookie.name,
+            );
+        }
+    }
+
+    #[test]
+    fn test_100_cookies_all_valid() {
+        let generator = CookieGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+
+        for seed in 0..100u64 {
+            let mut rng = seeded_rng(seed);
+            let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+            artifact.validate_plausibility().unwrap_or_else(|e| {
+                panic!("cookie {seed} failed plausibility: {e}");
+            });
+            let bytes = artifact.to_bytes().unwrap();
+            let cookie: CookieEntry = serde_json::from_slice(&bytes).unwrap();
+
+            assert!(!cookie.domain.is_empty(), "seed {seed}: empty domain");
+            assert!(
+                cookie.domain.starts_with('.'),
+                "seed {seed}: domain should start with dot: {}",
+                cookie.domain,
+            );
+            assert!(!cookie.name.is_empty(), "seed {seed}: empty name");
+            assert!(!cookie.value.is_empty(), "seed {seed}: empty value");
+            assert!(
+                cookie.expires_at >= cookie.created_at,
+                "seed {seed}: expires before created"
+            );
+        }
+    }
+
+    #[test]
+    fn test_https_cookies_dominant() {
+        let generator = CookieGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+        let mut secure_count = 0u32;
+
+        for seed in 0..500u64 {
+            let mut rng = seeded_rng(seed);
+            let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+            let bytes = artifact.to_bytes().unwrap();
+            let cookie: CookieEntry = serde_json::from_slice(&bytes).unwrap();
+
+            if cookie.secure {
+                secure_count += 1;
+            }
+        }
+
+        let pct = (secure_count as f64 / 500.0) * 100.0;
+        assert!(
+            pct > 60.0,
+            "secure cookies should dominate (>60%): got {pct:.1}% ({secure_count}/500)"
+        );
     }
 }

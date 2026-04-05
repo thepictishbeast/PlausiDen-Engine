@@ -5,7 +5,9 @@
 //! gets hammered with adversarial inputs. No test here verifies "correctness" --
 //! the only assertion is "does not crash."
 
+use engine_browser::bookmarks::{BookmarkEntry, BookmarkGenerator};
 use engine_browser::cookies::{CookieEntry, CookieGenerator};
+use engine_browser::downloads::{DownloadEntry, DownloadGenerator};
 use engine_browser::history::{HistoryEntry, HistoryGenerator};
 use engine_browser::searches::{SearchEntry, SearchGenerator};
 use engine_core::entropy::seeded_rng;
@@ -1083,5 +1085,435 @@ fn fuzz_every_os_family() {
         let mut rng = seeded_rng(900 + idx as u64);
         let result = history_gen.generate(&profile, &ctx, &mut rng);
         assert!(result.is_ok(), "OS {:?} must not crash", os);
+    }
+}
+
+// ============================================================================
+// Bookmark generator — adversarial & fuzz tests
+// ============================================================================
+
+/// Known bookmark folders from the generator's BOOKMARK_SITES constant.
+const KNOWN_BOOKMARK_FOLDERS: &[&str] = &[
+    "Development", "News", "Reference", "Email", "Cloud",
+    "Shopping", "Entertainment", "Social", "Professional",
+    "Productivity", "Utilities",
+];
+
+#[test]
+fn fuzz_bookmark_empty_interests() {
+    let profile = profile_with(vec![], RiskLevel::Medium);
+    let ctx = GenerationContext::new();
+    let mut rng = seeded_rng(4000);
+    let generator = BookmarkGenerator::new();
+
+    for _ in 0..100 {
+        let _ = generator.generate(&profile, &ctx, &mut rng);
+    }
+}
+
+#[test]
+fn fuzz_1000_bookmarks_all_valid() {
+    let generator = BookmarkGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .unwrap_or_else(|e| panic!("bookmark seed {seed} failed: {e}"));
+        artifact
+            .validate_plausibility()
+            .unwrap_or_else(|e| panic!("bookmark seed {seed} implausible: {e}"));
+    }
+}
+
+#[test]
+fn fuzz_bookmark_urls_are_https() {
+    let generator = BookmarkGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: BookmarkEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            entry.url.starts_with("https://"),
+            "seed {seed}: bookmark URL must be HTTPS, got: {}",
+            entry.url,
+        );
+    }
+}
+
+#[test]
+fn fuzz_bookmark_titles_non_empty() {
+    let generator = BookmarkGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: BookmarkEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            !entry.title.is_empty(),
+            "seed {seed}: bookmark title must not be empty",
+        );
+        assert!(
+            !entry.title.trim().is_empty(),
+            "seed {seed}: bookmark title must not be whitespace-only: '{}'",
+            entry.title,
+        );
+    }
+}
+
+#[test]
+fn fuzz_bookmark_folders_from_known_set() {
+    let generator = BookmarkGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: BookmarkEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            KNOWN_BOOKMARK_FOLDERS.contains(&entry.folder.as_str()),
+            "seed {seed}: unexpected bookmark folder '{}', expected one of {:?}",
+            entry.folder,
+            KNOWN_BOOKMARK_FOLDERS,
+        );
+    }
+}
+
+#[test]
+fn fuzz_bookmark_dates_in_past() {
+    let generator = BookmarkGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: BookmarkEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            entry.added_at <= ctx.now,
+            "seed {seed}: bookmark added_at is in the future: {} > {}",
+            entry.added_at,
+            ctx.now,
+        );
+        // Also verify the metadata timestamps are not future
+        let meta = artifact.metadata();
+        assert!(
+            meta.created_at <= ctx.now,
+            "seed {seed}: bookmark meta.created_at in the future: {} > {}",
+            meta.created_at,
+            ctx.now,
+        );
+        assert!(
+            meta.modified_at <= ctx.now,
+            "seed {seed}: bookmark meta.modified_at in the future: {} > {}",
+            meta.modified_at,
+            ctx.now,
+        );
+    }
+}
+
+#[test]
+fn fuzz_bookmark_every_risk_level() {
+    let levels = [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum];
+    let ctx = GenerationContext::new();
+    let generator = BookmarkGenerator::new();
+
+    for (idx, level) in levels.iter().enumerate() {
+        let profile = profile_with(vec![InterestCategory::Technology], *level);
+        let mut rng = seeded_rng(5000 + idx as u64);
+        let result = generator.generate(&profile, &ctx, &mut rng);
+        assert!(result.is_ok(), "risk level {:?} must not crash", level);
+    }
+}
+
+#[test]
+fn fuzz_bookmark_roundtrip_serde() {
+    let generator = BookmarkGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..200u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: BookmarkEntry = serde_json::from_slice(&bytes).unwrap();
+        // Re-serialize and compare
+        let bytes2 = serde_json::to_vec(&entry).unwrap();
+        let entry2: BookmarkEntry = serde_json::from_slice(&bytes2).unwrap();
+        assert_eq!(entry.url, entry2.url, "seed {seed}: URL roundtrip mismatch");
+        assert_eq!(entry.title, entry2.title, "seed {seed}: title roundtrip mismatch");
+        assert_eq!(entry.folder, entry2.folder, "seed {seed}: folder roundtrip mismatch");
+    }
+}
+
+// ============================================================================
+// Download generator — adversarial & fuzz tests
+// ============================================================================
+
+#[test]
+fn fuzz_download_empty_interests() {
+    let profile = profile_with(vec![], RiskLevel::Medium);
+    let ctx = GenerationContext::new();
+    let mut rng = seeded_rng(6000);
+    let generator = DownloadGenerator::new();
+
+    for _ in 0..100 {
+        let _ = generator.generate(&profile, &ctx, &mut rng);
+    }
+}
+
+#[test]
+fn fuzz_1000_downloads_all_valid() {
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .unwrap_or_else(|e| panic!("download seed {seed} failed: {e}"));
+        artifact
+            .validate_plausibility()
+            .unwrap_or_else(|e| panic!("download seed {seed} implausible: {e}"));
+    }
+}
+
+#[test]
+fn fuzz_download_completed_after_started() {
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            entry.completed_at >= entry.started_at,
+            "seed {seed}: completed_at ({}) < started_at ({})",
+            entry.completed_at,
+            entry.started_at,
+        );
+    }
+}
+
+#[test]
+fn fuzz_download_file_sizes_within_template_ranges() {
+    // Template ranges: smallest min is 50_000, largest max is 5_000_000_000.
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    let global_min: u64 = 50_000;
+    let global_max: u64 = 5_000_000_000;
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            entry.size_bytes >= global_min,
+            "seed {seed}: size {} below minimum template range {}",
+            entry.size_bytes,
+            global_min,
+        );
+        assert!(
+            entry.size_bytes <= global_max,
+            "seed {seed}: size {} above maximum template range {}",
+            entry.size_bytes,
+            global_max,
+        );
+        assert!(
+            entry.size_bytes > 0,
+            "seed {seed}: zero-byte download should be impossible",
+        );
+    }
+}
+
+#[test]
+fn fuzz_download_filenames_no_path_separators() {
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            !entry.filename.contains('/'),
+            "seed {seed}: filename contains forward slash: '{}'",
+            entry.filename,
+        );
+        assert!(
+            !entry.filename.contains('\\'),
+            "seed {seed}: filename contains backslash: '{}'",
+            entry.filename,
+        );
+        assert!(
+            !entry.filename.contains('\0'),
+            "seed {seed}: filename contains null byte",
+        );
+        assert!(
+            !entry.filename.is_empty(),
+            "seed {seed}: filename must not be empty",
+        );
+    }
+}
+
+#[test]
+fn fuzz_download_urls_valid_https() {
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            entry.url.starts_with("https://"),
+            "seed {seed}: download URL must be HTTPS, got: {}",
+            entry.url,
+        );
+        // Verify URL is parseable
+        assert!(
+            url::Url::parse(&entry.url).is_ok(),
+            "seed {seed}: download URL is not valid: {}",
+            entry.url,
+        );
+    }
+}
+
+#[test]
+fn fuzz_download_duration_scales_with_size() {
+    // The generator simulates ~10 MB/s, so larger files should take longer.
+    // Collect (size, duration) pairs and verify positive correlation.
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    let mut small_durations = Vec::new();
+    let mut large_durations = Vec::new();
+    let size_threshold: u64 = 100_000_000; // 100 MB
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        let duration_secs = (entry.completed_at - entry.started_at).num_seconds();
+        assert!(
+            duration_secs >= 1,
+            "seed {seed}: download duration must be >= 1s, got {duration_secs}s",
+        );
+        if entry.size_bytes < size_threshold {
+            small_durations.push(duration_secs);
+        } else {
+            large_durations.push(duration_secs);
+        }
+    }
+
+    // Both buckets should be non-empty across 1000 samples (templates span
+    // 50KB to 5GB, so we will hit both sides of 100MB).
+    assert!(
+        !small_durations.is_empty(),
+        "no downloads below {size_threshold} bytes in 1000 samples",
+    );
+    assert!(
+        !large_durations.is_empty(),
+        "no downloads above {size_threshold} bytes in 1000 samples",
+    );
+
+    let avg_small: f64 = small_durations.iter().sum::<i64>() as f64
+        / small_durations.len() as f64;
+    let avg_large: f64 = large_durations.iter().sum::<i64>() as f64
+        / large_durations.len() as f64;
+
+    assert!(
+        avg_large > avg_small,
+        "large files should have longer average download duration: \
+         avg_small={avg_small:.1}s, avg_large={avg_large:.1}s",
+    );
+}
+
+#[test]
+fn fuzz_download_every_risk_level() {
+    let levels = [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum];
+    let ctx = GenerationContext::new();
+    let generator = DownloadGenerator::new();
+
+    for (idx, level) in levels.iter().enumerate() {
+        let profile = profile_with(vec![InterestCategory::Technology], *level);
+        let mut rng = seeded_rng(7000 + idx as u64);
+        let result = generator.generate(&profile, &ctx, &mut rng);
+        assert!(result.is_ok(), "risk level {:?} must not crash", level);
+    }
+}
+
+#[test]
+fn fuzz_download_roundtrip_serde() {
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..200u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        let bytes2 = serde_json::to_vec(&entry).unwrap();
+        let entry2: DownloadEntry = serde_json::from_slice(&bytes2).unwrap();
+        assert_eq!(entry.url, entry2.url, "seed {seed}: URL roundtrip mismatch");
+        assert_eq!(entry.filename, entry2.filename, "seed {seed}: filename roundtrip mismatch");
+        assert_eq!(entry.size_bytes, entry2.size_bytes, "seed {seed}: size roundtrip mismatch");
+    }
+}
+
+#[test]
+fn fuzz_download_timestamps_in_past() {
+    let generator = DownloadGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+
+    for seed in 0..1000u64 {
+        let mut rng = seeded_rng(seed);
+        let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        // started_at and completed_at should both be in the past (or at now)
+        // The generator uses context.now - days_ago for started_at,
+        // then adds download_secs, so completed_at could slightly exceed
+        // context.now for very large files started recently. Allow 1 day margin.
+        let margin = chrono::Duration::days(1);
+        assert!(
+            entry.started_at <= ctx.now,
+            "seed {seed}: started_at in the future: {} > {}",
+            entry.started_at,
+            ctx.now,
+        );
+        assert!(
+            entry.completed_at <= ctx.now + margin,
+            "seed {seed}: completed_at too far in the future: {} > {}",
+            entry.completed_at,
+            ctx.now + margin,
+        );
     }
 }

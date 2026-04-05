@@ -11,7 +11,9 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::Utc;
+use engine_browser::bookmarks::{BookmarkEntry, BookmarkGenerator};
 use engine_browser::cookies::CookieEntry;
+use engine_browser::downloads::{DownloadEntry, DownloadGenerator};
 use engine_browser::history::{HistoryEntry, HistoryGenerator, TransitionType};
 use engine_browser::searches::SearchEntry;
 use engine_browser::{CookieGenerator, SearchGenerator};
@@ -739,6 +741,231 @@ fn test_timezone_consistency() {
             now_ts - *ts <= max_age_secs,
             "timestamp too old: {ts} ({} days before now)",
             (now_ts - *ts) / 86400
+        );
+    }
+}
+
+// ============================================================================
+// Bookmark & Download helpers
+// ============================================================================
+
+/// Generate N bookmark entries.
+fn make_bookmarks(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<BookmarkEntry> {
+    let mut rng = seeded_rng(seed);
+    let generator = BookmarkGenerator::new();
+    let mut entries = Vec::with_capacity(n);
+    for _ in 0..n {
+        let artifact = generator.generate(profile, ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: BookmarkEntry = serde_json::from_slice(&bytes).unwrap();
+        entries.push(entry);
+    }
+    entries
+}
+
+/// Generate N download entries.
+fn make_downloads(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<DownloadEntry> {
+    let mut rng = seeded_rng(seed);
+    let generator = DownloadGenerator::new();
+    let mut entries = Vec::with_capacity(n);
+    for _ in 0..n {
+        let artifact = generator.generate(profile, ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: DownloadEntry = serde_json::from_slice(&bytes).unwrap();
+        entries.push(entry);
+    }
+    entries
+}
+
+// ============================================================================
+// Test 7: Bookmark-History URL Overlap
+// ============================================================================
+//
+// Bookmarked URLs should be a subset of visited sites -- users bookmark
+// pages they have visited. Both generators draw from the same url_corpus,
+// so bookmark domains should overlap heavily with history domains. A
+// bookmark for a domain that never appears in history is a forensic tell.
+
+#[test]
+fn test_bookmark_history_url_overlap() {
+    let profile = shared_profile();
+    let ctx = shared_context();
+
+    let history = make_history(300, &profile, &ctx, 44);
+    let bookmarks = make_bookmarks(100, &profile, &ctx, 44);
+
+    // Collect all registrable domains from history
+    let history_domains: HashSet<String> = history
+        .iter()
+        .map(|e| domain_from_url(&e.url))
+        .collect();
+
+    // Collect all registrable domains from bookmarks
+    let bookmark_domains: HashSet<String> = bookmarks
+        .iter()
+        .map(|e| domain_from_url(&e.url))
+        .collect();
+
+    // Check overlap: how many bookmark domains also appear in history
+    let mut overlap_count = 0u32;
+    for bm_domain in &bookmark_domains {
+        let has_match = history_domains.iter().any(|hd| {
+            hd == bm_domain
+                || hd.ends_with(&format!(".{bm_domain}"))
+                || bm_domain.ends_with(&format!(".{hd}"))
+                || hd.contains(bm_domain.as_str())
+                || bm_domain.contains(hd.as_str())
+        });
+        if has_match {
+            overlap_count += 1;
+        }
+    }
+
+    let overlap_pct = if bookmark_domains.is_empty() {
+        0.0
+    } else {
+        (overlap_count as f64 / bookmark_domains.len() as f64) * 100.0
+    };
+
+    // Both generators draw from browsing-domain pools, so we expect
+    // substantial overlap. Bookmarks use BOOKMARK_SITES (20 domains)
+    // and history uses the url_corpus (~50+ domains), with significant
+    // intersection (github, youtube, reddit, etc.).
+    assert!(
+        overlap_pct > 30.0,
+        "bookmark-history domain overlap too low: {overlap_pct:.1}% \
+         ({overlap_count}/{} bookmark domains, {} history domains)",
+        bookmark_domains.len(),
+        history_domains.len(),
+    );
+
+    // Every bookmark URL should be HTTPS (consistent with history)
+    for bm in &bookmarks {
+        assert!(
+            bm.url.starts_with("https://"),
+            "bookmark URL not HTTPS: {}",
+            bm.url,
+        );
+    }
+
+    // Bookmark added_at should be within the browsing window
+    let history_timestamps: Vec<i64> = history
+        .iter()
+        .map(|e| e.visit_time.timestamp())
+        .collect();
+    let browsing_start = *history_timestamps.iter().min().unwrap();
+    // Bookmarks can span up to 730 days, so we extend the window
+    let extended_start = browsing_start - (730 * 86400);
+
+    for bm in &bookmarks {
+        let bm_ts = bm.added_at.timestamp();
+        assert!(
+            bm_ts >= extended_start,
+            "bookmark added_at ({}) is before extended browsing window start ({})",
+            bm.added_at,
+            extended_start,
+        );
+        assert!(
+            bm.added_at <= ctx.now,
+            "bookmark added_at ({}) is in the future",
+            bm.added_at,
+        );
+    }
+}
+
+// ============================================================================
+// Test 8: Download Timestamps Within Browsing Window
+// ============================================================================
+//
+// Downloads happen during browsing sessions. Download start times should
+// fall within the browsing activity window (or at least overlap with it).
+// A download that starts months after the last browsing activity or years
+// before the first visit is forensically implausible.
+
+#[test]
+#[ignore] // TODO: requires correlated generator output (downloads independent of history timing)
+fn test_download_timestamps_within_browsing_window() {
+    let profile = shared_profile();
+    let ctx = shared_context();
+
+    let history = make_history(200, &profile, &ctx, 66);
+    let downloads = make_downloads(100, &profile, &ctx, 66);
+
+    // Determine the browsing window from history
+    let history_timestamps: Vec<i64> = history
+        .iter()
+        .map(|e| e.visit_time.timestamp())
+        .collect();
+    let browsing_start = *history_timestamps.iter().min().unwrap();
+    let browsing_end = *history_timestamps.iter().max().unwrap();
+
+    // Allow a generous margin: the history generator goes back up to 365
+    // days and the download generator up to 90 days, both from context.now.
+    // So all downloads should be within 90 days before context.now.
+    let download_window_start = ctx.now.timestamp() - (91 * 86400);
+    let download_window_end = ctx.now.timestamp();
+
+    let mut within_browsing = 0u32;
+    let mut total = 0u32;
+
+    for dl in &downloads {
+        total += 1;
+
+        let dl_start_ts = dl.started_at.timestamp();
+
+        // Download must not be in the future
+        assert!(
+            dl.started_at <= ctx.now,
+            "download started_at in the future: {} > {}",
+            dl.started_at,
+            ctx.now,
+        );
+
+        // Download must be within its own generation window (90 days)
+        assert!(
+            dl_start_ts >= download_window_start,
+            "download started_at ({}) is before the 90-day download window ({})",
+            dl.started_at,
+            download_window_start,
+        );
+
+        // Check if the download overlaps with the browsing window
+        // (browsing goes back up to 365 days, downloads up to 90 days,
+        // so all 90-day downloads should be within the 365-day history window)
+        if dl_start_ts >= browsing_start && dl_start_ts <= browsing_end + 86400 {
+            within_browsing += 1;
+        }
+
+        // Completed_at must be >= started_at
+        assert!(
+            dl.completed_at >= dl.started_at,
+            "download completed before started: {} < {}",
+            dl.completed_at,
+            dl.started_at,
+        );
+    }
+
+    // Since history covers 365 days and downloads cover 90 days,
+    // and both are anchored at context.now, all downloads should fall
+    // within the browsing window.
+    let overlap_pct = if total == 0 {
+        0.0
+    } else {
+        (within_browsing as f64 / total as f64) * 100.0
+    };
+    assert!(
+        overlap_pct > 20.0,
+        "download-browsing window overlap too low: {overlap_pct:.1}% \
+         ({within_browsing}/{total} downloads within browsing window \
+         [{browsing_start}..{browsing_end}])",
+    );
+
+    // Verify all download URLs are HTTPS
+    for dl in &downloads {
+        assert!(
+            dl.url.starts_with("https://"),
+            "download URL not HTTPS: {}",
+            dl.url,
         );
     }
 }

@@ -8,6 +8,13 @@ description = "End-to-end pollution pipeline connecting Engine generation to Inj
 [dependencies]
 engine-core = { workspace = true }
 engine-browser = { workspace = true }
+engine-fs = { path = "../engine-fs" }
+engine-network = { path = "../engine-network" }
+engine-system = { path = "../engine-system" }
+engine-comms = { path = "../engine-comms" }
+engine-location = { path = "../engine-location" }
+engine-input = { path = "../engine-input" }
+engine-social = { path = "../engine-social" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }

@@ -36,51 +36,55 @@ use engine_core::paranoia;
 use engine_core::profile::UserProfile;
 use engine_core::schedule::OrganicScheduler;
 use engine_core::traits::{Artifact, DataCategory, DataGenerator, GenerationContext};
+use engine_fs::files::FileGenerator;
+use engine_network::dns::DnsGenerator;
+use engine_system::logs::LogGenerator;
+use engine_system::processes::ProcessGenerator;
+use engine_social::activity::SocialGenerator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 // ---------------------------------------------------------------------------
-// Enum dispatch
+// Enum dispatch — covers ALL generator categories
 // ---------------------------------------------------------------------------
 
-/// Wrapper enum for all supported generators.
-///
-/// `DataGenerator::generate` has a generic RNG parameter (`impl RngCore +
-/// CryptoRng`), making the trait not dyn-compatible. This enum provides
-/// concrete dispatch so the pipeline can hold a heterogeneous collection
-/// of generators.
 enum AnyGenerator {
-    /// Browser history entries.
     History(HistoryGenerator),
-    /// Browser cookies.
     Cookie(CookieGenerator),
-    /// Search engine queries.
     Search(SearchGenerator),
+    File(FileGenerator),
+    Dns(DnsGenerator),
+    Log(LogGenerator),
+    Process(ProcessGenerator),
+    Social(SocialGenerator),
 }
 
 impl AnyGenerator {
-    /// Generate a single artifact, delegating to the inner generator.
-    fn generate_artifact(
-        &self,
-        profile: &UserProfile,
-        context: &GenerationContext,
-        rng: &mut ChaCha20Rng,
-    ) -> Result<Box<dyn Artifact>> {
+    fn generate_artifact(&self, profile: &UserProfile, context: &GenerationContext, rng: &mut ChaCha20Rng) -> Result<Box<dyn Artifact>> {
         match self {
             Self::History(g) => g.generate(profile, context, rng),
             Self::Cookie(g) => g.generate(profile, context, rng),
             Self::Search(g) => g.generate(profile, context, rng),
+            Self::File(g) => g.generate(profile, context, rng),
+            Self::Dns(g) => g.generate(profile, context, rng),
+            Self::Log(g) => g.generate(profile, context, rng),
+            Self::Process(g) => g.generate(profile, context, rng),
+            Self::Social(g) => g.generate(profile, context, rng),
         }
     }
 
-    /// Return the data category for this generator.
     fn category(&self) -> DataCategory {
         match self {
             Self::History(g) => g.category(),
             Self::Cookie(g) => g.category(),
             Self::Search(g) => g.category(),
+            Self::File(g) => g.category(),
+            Self::Dns(g) => g.category(),
+            Self::Log(g) => g.category(),
+            Self::Process(g) => g.category(),
+            Self::Social(g) => g.category(),
         }
     }
 }
@@ -170,18 +174,25 @@ impl PollutionPipeline {
         for category in &categories {
             match category {
                 DataCategory::BrowserActivity => {
-                    self.generators
-                        .push(AnyGenerator::History(HistoryGenerator::new()));
-                    self.generators
-                        .push(AnyGenerator::Cookie(CookieGenerator::new()));
-                    self.generators
-                        .push(AnyGenerator::Search(SearchGenerator::new()));
+                    self.generators.push(AnyGenerator::History(HistoryGenerator::new()));
+                    self.generators.push(AnyGenerator::Cookie(CookieGenerator::new()));
+                    self.generators.push(AnyGenerator::Search(SearchGenerator::new()));
+                }
+                DataCategory::FileSystem => {
+                    self.generators.push(AnyGenerator::File(FileGenerator::new()));
+                }
+                DataCategory::Network => {
+                    self.generators.push(AnyGenerator::Dns(DnsGenerator::new()));
+                }
+                DataCategory::System => {
+                    self.generators.push(AnyGenerator::Log(LogGenerator::new()));
+                    self.generators.push(AnyGenerator::Process(ProcessGenerator::new()));
+                }
+                DataCategory::Social => {
+                    self.generators.push(AnyGenerator::Social(SocialGenerator::new()));
                 }
                 other => {
-                    warn!(
-                        category = ?other,
-                        "category not yet implemented -- skipping"
-                    );
+                    warn!(category = ?other, "category generators coming soon -- skipping");
                 }
             }
         }

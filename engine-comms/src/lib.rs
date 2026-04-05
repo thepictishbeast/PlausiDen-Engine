@@ -13,3 +13,5 @@ pub mod sms;
 // Re-export primary generators for convenience.
 pub use calls::{CallDirection, CallEntry, CallGenerator};
 pub use contacts::{ContactCategory, ContactEntry, ContactGenerator};
+pub use email_headers::{EmailHeaderEntry, EmailHeaderGenerator};
+pub use sms::{ReadStatus, SmsDirection, SmsEntry, SmsGenerator};

@@ -26,3 +26,5 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 [dev-dependencies]
 proptest = { workspace = true }
 tokio = { workspace = true }
+engine-fs = { workspace = true }
+engine-network = { workspace = true }

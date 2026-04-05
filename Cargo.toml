@@ -38,3 +38,5 @@ tokio = { version = "1", features = ["full"] }
 # Internal crates
 engine-core = { path = "engine-core" }
 engine-browser = { path = "engine-browser" }
+engine-fs = { path = "engine-fs" }
+engine-network = { path = "engine-network" }

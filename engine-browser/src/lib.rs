@@ -13,6 +13,7 @@ pub mod cookies;
 pub mod downloads;
 pub mod history;
 pub mod localstorage;
+pub mod patterns;
 pub mod searches;
 
 mod url_corpus;

@@ -382,7 +382,7 @@ impl GpsGenerator {
     /// clusters and travel segments.
     pub fn generate_trace(
         &mut self,
-        profile: &UserProfile,
+        _profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
         count: usize,

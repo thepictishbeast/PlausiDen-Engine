@@ -18,6 +18,7 @@ pub mod entropy;
 pub mod error;
 pub mod paranoia;
 pub mod profile;
+pub mod rate_governor;
 pub mod schedule;
 pub mod traits;
 

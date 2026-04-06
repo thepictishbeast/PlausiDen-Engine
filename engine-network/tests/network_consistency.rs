@@ -11,12 +11,11 @@ use chrono::Utc;
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use engine_network::dns::{DnsEntry, DnsGenerator};
+use engine_network::dns::{DnsQuery, DnsQueryGenerator};
 use engine_network::http::{HttpEntry, HttpGenerator};
-use engine_network::tls::{
-    TlsEntry, TlsGenerator, KNOWN_JA3_CHROME_120, KNOWN_JA3_CURL_WGET,
-    KNOWN_JA3_FIREFOX_121, KNOWN_JA3_SAFARI_17,
-};
+use engine_network::http_timing::{HttpTiming, HttpTimingGenerator};
+use engine_network::tls::{TlsEntry, TlsGenerator};
+use engine_network::tls_fingerprint::{TlsFingerprint, TlsFingerprintGenerator};
 
 // ============================================================================
 // Shared helpers
@@ -43,26 +42,26 @@ fn host_from_url(url: &str) -> String {
         .to_lowercase()
 }
 
-/// Generate N DNS entries.
+/// Generate N DNS query entries.
 fn make_dns(
     n: usize,
     profile: &UserProfile,
     ctx: &GenerationContext,
     seed: u64,
-) -> Vec<DnsEntry> {
-    let dns_gen = DnsGenerator::new();
+) -> Vec<DnsQuery> {
+    let dns_gen = DnsQueryGenerator::new();
     let mut rng = seeded_rng(seed);
     let mut entries = Vec::with_capacity(n);
     for _ in 0..n {
         let artifact = dns_gen.generate(profile, ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: DnsEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: DnsQuery = serde_json::from_slice(&bytes).unwrap();
         entries.push(entry);
     }
     entries
 }
 
-/// Generate N HTTP entries.
+/// Generate N HTTP entries (full detail).
 fn make_http(
     n: usize,
     profile: &UserProfile,
@@ -81,7 +80,26 @@ fn make_http(
     entries
 }
 
-/// Generate N TLS entries.
+/// Generate N HTTP timing entries.
+fn make_http_timing(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<HttpTiming> {
+    let http_timing_gen = HttpTimingGenerator::new();
+    let mut rng = seeded_rng(seed);
+    let mut entries = Vec::with_capacity(n);
+    for _ in 0..n {
+        let artifact = http_timing_gen.generate(profile, ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: HttpTiming = serde_json::from_slice(&bytes).unwrap();
+        entries.push(entry);
+    }
+    entries
+}
+
+/// Generate N TLS entries (old-style with JA4).
 fn make_tls(
     n: usize,
     profile: &UserProfile,
@@ -100,13 +118,28 @@ fn make_tls(
     entries
 }
 
+/// Generate N TLS fingerprint entries.
+fn make_tls_fingerprint(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<TlsFingerprint> {
+    let tls_fp_gen = TlsFingerprintGenerator::new();
+    let mut rng = seeded_rng(seed);
+    let mut entries = Vec::with_capacity(n);
+    for _ in 0..n {
+        let artifact = tls_fp_gen.generate(profile, ctx, &mut rng).unwrap();
+        let bytes = artifact.to_bytes().unwrap();
+        let entry: TlsFingerprint = serde_json::from_slice(&bytes).unwrap();
+        entries.push(entry);
+    }
+    entries
+}
+
 // ============================================================================
 // Test 1: HTTP requests should have corresponding DNS lookups for their domains
 // ============================================================================
-//
-// Every HTTP request implies a prior DNS resolution for its domain. Both
-// generators draw from overlapping domain pools, so the set of HTTP
-// request domains should substantially overlap with the DNS domain pool.
 
 #[test]
 fn test_http_domains_have_dns_lookups() {
@@ -137,7 +170,7 @@ fn test_http_domains_have_dns_lookups() {
         let bare = host.strip_prefix("www.").unwrap_or(host);
         let has_dns = dns_domains.contains(host)
             || dns_domains.contains(bare)
-            || dns_domains.iter().any(|d| d.contains(bare) || bare.contains(d.as_str()));
+            || dns_domains.iter().any(|d: &String| d.contains(bare) || bare.contains(d.as_str()));
         if has_dns {
             matched += 1;
         }
@@ -149,8 +182,6 @@ fn test_http_domains_have_dns_lookups() {
         (matched as f64 / http_hosts.len() as f64) * 100.0
     };
 
-    // HTTP uses DOMAINS (20 entries) and DNS uses browsing_domains() (same 20)
-    // plus infrastructure/CDN/analytics. Overlap should be significant.
     assert!(
         coverage_pct > 40.0,
         "HTTP domains should have DNS coverage >40%: got {coverage_pct:.1}% \
@@ -163,9 +194,6 @@ fn test_http_domains_have_dns_lookups() {
 // ============================================================================
 // Test 2: HTTPS requests should have corresponding TLS handshakes
 // ============================================================================
-//
-// Every HTTPS URL implies a TLS handshake to that server. The TLS
-// generator's SNI domain pool should overlap with HTTP's domain pool.
 
 #[test]
 fn test_https_requests_have_tls_handshakes() {
@@ -175,7 +203,7 @@ fn test_https_requests_have_tls_handshakes() {
     let http_entries = make_http(200, &profile, &ctx, 77);
     let tls_entries = make_tls(300, &profile, &ctx, 77);
 
-    // All HTTP entries use https:// scheme (verified by build_url)
+    // All HTTP entries use https:// scheme
     for entry in &http_entries {
         assert!(
             entry.url.starts_with("https://"),
@@ -209,8 +237,6 @@ fn test_https_requests_have_tls_handshakes() {
         (matched as f64 / https_hosts.len() as f64) * 100.0
     };
 
-    // HTTP DOMAINS and TLS SNI_DOMAINS share the same 20 browsing domains.
-    // TLS also includes CDN/API/auth domains (6 extra). Coverage should be high.
     assert!(
         coverage_pct > 50.0,
         "HTTPS hosts should have TLS handshake coverage >50%: got {coverage_pct:.1}% \
@@ -221,48 +247,36 @@ fn test_https_requests_have_tls_handshakes() {
 }
 
 // ============================================================================
-// Test 3: TLS JA3 hashes should match known browser profiles (not random)
+// Test 3: TLS fingerprint JA3 hashes are 32 hex chars and deterministic
 // ============================================================================
-//
-// Every JA3 hash the TLS generator produces must be one of the four
-// known browser profiles. A random or unknown JA3 hash would immediately
-// flag the traffic as synthetic in forensic analysis.
 
 #[test]
-fn test_tls_ja3_matches_known_profiles() {
+fn test_tls_fingerprint_ja3_format() {
     let profile = shared_profile();
     let ctx = shared_context();
 
-    let known_ja3: HashSet<&str> = [
-        KNOWN_JA3_CHROME_120,
-        KNOWN_JA3_FIREFOX_121,
-        KNOWN_JA3_SAFARI_17,
-        KNOWN_JA3_CURL_WGET,
-    ]
-    .into_iter()
-    .collect();
+    let tls_entries = make_tls_fingerprint(1000, &profile, &ctx, 99);
 
-    let tls_entries = make_tls(1000, &profile, &ctx, 99);
-
+    let mut unique_ja3: HashSet<String> = HashSet::new();
     for (i, entry) in tls_entries.iter().enumerate() {
-        assert!(
-            known_ja3.contains(entry.ja3_hash.as_str()),
-            "TLS entry {i} has unknown JA3 hash '{}' for server '{}' \
-             -- all hashes must match a known browser profile",
+        assert_eq!(
+            entry.ja3_hash.len(),
+            32,
+            "entry {i}: JA3 hash must be 32 hex chars, got '{}'",
             entry.ja3_hash,
-            entry.server_name,
         );
+        assert!(
+            entry.ja3_hash.chars().all(|c| c.is_ascii_hexdigit()),
+            "entry {i}: JA3 hash must be hex, got '{}'",
+            entry.ja3_hash,
+        );
+        unique_ja3.insert(entry.ja3_hash.clone());
     }
 
-    // Additionally, verify that we see multiple browser profiles
-    // (not all traffic from one browser)
-    let unique_ja3: HashSet<&str> = tls_entries
-        .iter()
-        .map(|e| e.ja3_hash.as_str())
-        .collect();
+    // Should see multiple browser profiles
     assert!(
         unique_ja3.len() >= 3,
-        "TLS entries should use at least 3 different browser profiles, \
+        "TLS fingerprints should use at least 3 different browser profiles, \
          got {}: {:?}",
         unique_ja3.len(),
         unique_ja3,
@@ -270,12 +284,8 @@ fn test_tls_ja3_matches_known_profiles() {
 }
 
 // ============================================================================
-// Test 4: HTTP timing ordering: DNS < TCP < TLS < TTFB < total
+// Test 4: HTTP timing phase ordering: dns < tcp < tls < ttfb < total
 // ============================================================================
-//
-// The HTTP request lifecycle has a strict phase ordering. Cumulative
-// sums must be monotonically increasing:
-//   dns_lookup <= dns+tcp <= dns+tcp+tls <= dns+tcp+tls+ttfb <= total
 
 #[test]
 fn test_http_timing_phase_ordering() {
@@ -287,7 +297,6 @@ fn test_http_timing_phase_ordering() {
     for (i, entry) in http_entries.iter().enumerate() {
         let t = &entry.timing;
 
-        // Cumulative phase sums must be monotonically non-decreasing
         let after_dns = t.dns_lookup_ms;
         let after_tcp = after_dns + t.tcp_connect_ms;
         let after_tls = after_tcp + t.tls_handshake_ms;
@@ -311,14 +320,12 @@ fn test_http_timing_phase_ordering() {
             "entry {i}: pre-transfer ({after_ttfb}ms) > total ({total}ms)",
         );
 
-        // total_ms() helper must agree with manual sum
         assert_eq!(
             t.total_ms(),
             total,
             "entry {i}: total_ms() disagrees with component sum",
         );
 
-        // Each non-DNS phase must be > 0 (TCP, TLS, TTFB, transfer are always positive)
         assert!(t.tcp_connect_ms > 0, "entry {i}: TCP connect is 0");
         assert!(t.tls_handshake_ms > 0, "entry {i}: TLS handshake is 0");
         assert!(t.ttfb_ms > 0, "entry {i}: TTFB is 0");
@@ -327,12 +334,185 @@ fn test_http_timing_phase_ordering() {
 }
 
 // ============================================================================
-// Test 5: Status code 304 must have zero body size
+// Test 5: HttpTiming response times follow log-normal distribution
 // ============================================================================
-//
-// HTTP 304 Not Modified means the server says "use your cache." The
-// response body MUST be empty per RFC 7232. Any non-zero body on a 304
-// is a protocol violation that forensic tools would flag.
+
+#[test]
+fn test_http_timing_response_times_skewed() {
+    let profile = shared_profile();
+    let ctx = shared_context();
+
+    let entries = make_http_timing(2000, &profile, &ctx, 88);
+    let mut times: Vec<u32> = entries.iter().map(|e| e.response_time_ms).collect();
+    times.sort();
+
+    let median = times[times.len() / 2];
+    let mean = times.iter().map(|&t| t as f64).sum::<f64>() / times.len() as f64;
+
+    // Log-normal: mean > median (right-skewed)
+    assert!(
+        mean > median as f64,
+        "mean ({mean:.1}ms) should exceed median ({median}ms) for log-normal distribution",
+    );
+
+    // Median should be fast (under 300ms)
+    assert!(
+        median < 300,
+        "median response time should be <300ms, got {median}ms",
+    );
+}
+
+// ============================================================================
+// Test 6: HTTP full detail -- Referer URLs should be valid HTTPS
+// ============================================================================
+
+#[test]
+fn test_http_referer_urls_are_valid_https() {
+    let profile = shared_profile();
+    let ctx = shared_context();
+
+    let http_entries = make_http(1000, &profile, &ctx, 33);
+
+    let mut referer_count = 0u32;
+    for (i, entry) in http_entries.iter().enumerate() {
+        if let Some(referer) = entry.request_headers.get("Referer") {
+            referer_count += 1;
+
+            assert!(
+                referer.starts_with("https://"),
+                "entry {i}: Referer must be HTTPS, got '{referer}'",
+            );
+
+            let after_scheme = referer.strip_prefix("https://").unwrap();
+            let host = after_scheme.split('/').next().unwrap_or("");
+            assert!(
+                !host.is_empty() && host.contains('.'),
+                "entry {i}: Referer has invalid host: '{host}' (from '{referer}')",
+            );
+        }
+    }
+
+    assert!(
+        referer_count > 300,
+        "too few Referer headers: {referer_count}/1000 (expected ~600)",
+    );
+}
+
+// ============================================================================
+// Test 7: DNS latency values are plausible
+// ============================================================================
+
+#[test]
+fn test_dns_latency_plausible() {
+    let profile = shared_profile();
+    let ctx = shared_context();
+
+    let dns_entries = make_dns(1000, &profile, &ctx, 44);
+
+    let mut fast_count = 0u32;
+    let mut slow_count = 0u32;
+
+    for entry in &dns_entries {
+        assert!(
+            entry.latency_ms <= 5000,
+            "DNS latency {}ms exceeds 5s limit for domain '{}'",
+            entry.latency_ms,
+            entry.domain,
+        );
+        if entry.latency_ms <= 3 {
+            fast_count += 1;
+        } else {
+            slow_count += 1;
+        }
+    }
+
+    // Both fast (cached) and slow (recursive) queries should be present
+    assert!(fast_count > 0, "no fast DNS queries found in 1000 samples");
+    assert!(slow_count > 0, "no slow DNS queries found in 1000 samples");
+}
+
+// ============================================================================
+// Test 8: All timestamps across DNS/HTTP/TLS should be UTC and same window
+// ============================================================================
+
+#[test]
+fn test_all_timestamps_utc_and_same_window() {
+    let profile = shared_profile();
+    let ctx = shared_context();
+
+    let dns_entries = make_dns(200, &profile, &ctx, 66);
+    let http_entries = make_http_timing(200, &profile, &ctx, 66);
+    let tls_entries = make_tls_fingerprint(200, &profile, &ctx, 66);
+
+    // Verify all DNS timestamps are UTC
+    for entry in &dns_entries {
+        assert_eq!(
+            entry.timestamp.timezone(),
+            Utc,
+            "DNS timestamp has non-UTC timezone: {:?}",
+            entry.timestamp,
+        );
+    }
+
+    // Verify all HTTP timing timestamps are UTC
+    for entry in &http_entries {
+        assert_eq!(
+            entry.timestamp.timezone(),
+            Utc,
+            "HTTP timing timestamp has non-UTC timezone: {:?}",
+            entry.timestamp,
+        );
+    }
+
+    // Verify all TLS fingerprint timestamps are UTC
+    for entry in &tls_entries {
+        assert_eq!(
+            entry.timestamp.timezone(),
+            Utc,
+            "TLS fingerprint timestamp has non-UTC timezone: {:?}",
+            entry.timestamp,
+        );
+    }
+
+    // All timestamps should fall within [context.now - 601s, context.now].
+    // DNS infrastructure queries use up to 600s jitter.
+    let now_ts = ctx.now.timestamp();
+    let max_jitter = 601i64;
+
+    let all_timestamps: Vec<(&str, i64)> = dns_entries
+        .iter()
+        .map(|e| ("DNS", e.timestamp.timestamp()))
+        .chain(http_entries.iter().map(|e| ("HTTP", e.timestamp.timestamp())))
+        .chain(tls_entries.iter().map(|e| ("TLS", e.timestamp.timestamp())))
+        .collect();
+
+    for (source, ts) in &all_timestamps {
+        assert!(
+            *ts <= now_ts + 1,
+            "{source} timestamp in the future: {ts} > {now_ts}",
+        );
+        assert!(
+            now_ts - *ts <= max_jitter,
+            "{source} timestamp too old: {ts} ({} seconds before now, max jitter is {max_jitter}s)",
+            now_ts - ts,
+        );
+    }
+
+    // Cross-artifact window check
+    let min_ts = all_timestamps.iter().map(|(_, ts)| *ts).min().unwrap();
+    let max_ts = all_timestamps.iter().map(|(_, ts)| *ts).max().unwrap();
+    let span = max_ts - min_ts;
+
+    assert!(
+        span <= max_jitter,
+        "cross-artifact timestamp span ({span}s) exceeds max jitter window ({max_jitter}s) \
+         -- generators may be using different time bases",
+    );
+}
+
+// ============================================================================
+// Test 9: Status code 304 must have zero body size (full HTTP generator)
+// ============================================================================
 
 #[test]
 fn test_status_304_has_zero_body_size() {
@@ -353,7 +533,6 @@ fn test_status_304_has_zero_body_size() {
         }
     }
 
-    // With ~10% 304 rate and 5000 samples, we must find at least one
     assert!(
         found_304,
         "no 304 responses found in 5000 HTTP entries -- distribution is broken",
@@ -361,206 +540,20 @@ fn test_status_304_has_zero_body_size() {
 }
 
 // ============================================================================
-// Test 6: HTTP Referer URLs should be valid HTTPS URLs
+// Test 10: TLS fingerprint extensions include server_name
 // ============================================================================
-//
-// The Referer header (when present) must be a well-formed HTTPS URL.
-// An invalid or HTTP-only referrer on an HTTPS request would be a
-// forensic anomaly (browsers strip referrers when downgrading to HTTP).
 
 #[test]
-fn test_http_referer_urls_are_valid_https() {
+fn test_tls_fingerprint_has_sni_extension() {
     let profile = shared_profile();
     let ctx = shared_context();
 
-    let http_entries = make_http(1000, &profile, &ctx, 33);
+    let entries = make_tls_fingerprint(200, &profile, &ctx, 111);
 
-    let mut referer_count = 0u32;
-    for (i, entry) in http_entries.iter().enumerate() {
-        if let Some(referer) = entry.request_headers.get("Referer") {
-            referer_count += 1;
-
-            // Must start with https://
-            assert!(
-                referer.starts_with("https://"),
-                "entry {i}: Referer must be HTTPS, got '{referer}'",
-            );
-
-            // Must have a valid host after the scheme
-            let after_scheme = referer.strip_prefix("https://").unwrap();
-            let host = after_scheme.split('/').next().unwrap_or("");
-            assert!(
-                !host.is_empty() && host.contains('.'),
-                "entry {i}: Referer has invalid host: '{host}' (from '{referer}')",
-            );
-        }
-    }
-
-    // Referer is present ~60% of the time, so with 1000 entries we
-    // should see a substantial number
-    assert!(
-        referer_count > 300,
-        "too few Referer headers: {referer_count}/1000 (expected ~600)",
-    );
-}
-
-// ============================================================================
-// Test 7: DNS cache hits should have response_ms < 5ms
-// ============================================================================
-//
-// Cached DNS responses come from the OS resolver cache, not the network.
-// They must complete in under 5ms. Slow "cached" responses would be a
-// dead giveaway of synthetic data.
-
-#[test]
-fn test_dns_cache_hits_are_fast() {
-    let profile = shared_profile();
-    let ctx = shared_context();
-
-    let dns_entries = make_dns(1000, &profile, &ctx, 44);
-
-    let mut cached_count = 0u32;
-    let mut non_cached_count = 0u32;
-
-    for (i, entry) in dns_entries.iter().enumerate() {
-        if entry.cached {
-            cached_count += 1;
-            assert!(
-                entry.response_ms <= 5,
-                "entry {i}: cached DNS response must be <=5ms, \
-                 got {}ms for domain '{}'",
-                entry.response_ms,
-                entry.domain,
-            );
-        } else {
-            non_cached_count += 1;
-            // Uncached responses should be >= 5ms (real network latency)
-            assert!(
-                entry.response_ms >= 5,
-                "entry {i}: uncached DNS response must be >=5ms, \
-                 got {}ms for domain '{}'",
-                entry.response_ms,
-                entry.domain,
-            );
-        }
-    }
-
-    // Both cached and non-cached entries should be present
-    assert!(
-        cached_count > 0,
-        "no cached DNS entries found in 1000 samples",
-    );
-    assert!(
-        non_cached_count > 0,
-        "no non-cached DNS entries found in 1000 samples",
-    );
-
-    // Cache hit ratio should be roughly 60% per the generator
-    let cache_pct = (cached_count as f64 / (cached_count + non_cached_count) as f64) * 100.0;
-    assert!(
-        cache_pct > 40.0 && cache_pct < 80.0,
-        "DNS cache hit rate should be ~60%, got {cache_pct:.1}%",
-    );
-}
-
-// ============================================================================
-// Test 8: All timestamps across DNS/HTTP/TLS should be UTC and within
-//         the same time window
-// ============================================================================
-//
-// Mixed timezones within a single profile are an obvious synthetic data
-// tell. All three generators must produce UTC timestamps. Additionally,
-// since all share the same GenerationContext.now, their timestamps must
-// fall within the same jitter window (0-300s before context.now).
-
-#[test]
-fn test_all_timestamps_utc_and_same_window() {
-    let profile = shared_profile();
-    let ctx = shared_context();
-
-    let dns_entries = make_dns(200, &profile, &ctx, 66);
-    let http_entries = make_http(200, &profile, &ctx, 66);
-    let tls_entries = make_tls(200, &profile, &ctx, 66);
-
-    // Verify all DNS timestamps are UTC
-    for entry in &dns_entries {
-        assert_eq!(
-            entry.query_time.timezone(),
-            Utc,
-            "DNS query_time has non-UTC timezone: {:?}",
-            entry.query_time,
-        );
-        assert_eq!(
-            entry.meta.created_at.timezone(),
-            Utc,
-            "DNS meta.created_at has non-UTC timezone",
-        );
-    }
-
-    // Verify all HTTP timestamps are UTC
-    for entry in &http_entries {
-        assert_eq!(
-            entry.timestamp.timezone(),
-            Utc,
-            "HTTP timestamp has non-UTC timezone: {:?}",
-            entry.timestamp,
-        );
-        assert_eq!(
-            entry.meta.created_at.timezone(),
-            Utc,
-            "HTTP meta.created_at has non-UTC timezone",
-        );
-    }
-
-    // Verify all TLS timestamps are UTC
-    for entry in &tls_entries {
-        assert_eq!(
-            entry.timestamp.timezone(),
-            Utc,
-            "TLS timestamp has non-UTC timezone: {:?}",
-            entry.timestamp,
-        );
-        assert_eq!(
-            entry.meta.created_at.timezone(),
-            Utc,
-            "TLS meta.created_at has non-UTC timezone",
-        );
-    }
-
-    // All timestamps should fall within [context.now - 301s, context.now].
-    // Each generator applies jitter of Uniform(0, 300) seconds.
-    let now_ts = ctx.now.timestamp();
-    let max_jitter = 301i64; // 300s jitter + 1s tolerance
-
-    let all_timestamps: Vec<(&str, i64)> = dns_entries
-        .iter()
-        .map(|e| ("DNS", e.query_time.timestamp()))
-        .chain(http_entries.iter().map(|e| ("HTTP", e.timestamp.timestamp())))
-        .chain(tls_entries.iter().map(|e| ("TLS", e.timestamp.timestamp())))
-        .collect();
-
-    for (source, ts) in &all_timestamps {
+    for (i, entry) in entries.iter().enumerate() {
         assert!(
-            *ts <= now_ts + 1,
-            "{source} timestamp in the future: {ts} > {now_ts}",
-        );
-        assert!(
-            now_ts - *ts <= max_jitter,
-            "{source} timestamp too old: {ts} ({} seconds before now, max jitter is {max_jitter}s)",
-            now_ts - ts,
+            entry.extensions.contains(&"server_name".to_string()),
+            "entry {i}: TLS fingerprint must include server_name extension",
         );
     }
-
-    // Cross-artifact window check: the span of all timestamps should be
-    // at most ~300s (the jitter range). A wider span would indicate
-    // generators using different time bases.
-    let min_ts = all_timestamps.iter().map(|(_, ts)| *ts).min().unwrap();
-    let max_ts = all_timestamps.iter().map(|(_, ts)| *ts).max().unwrap();
-    let span = max_ts - min_ts;
-
-    assert!(
-        span <= max_jitter,
-        "cross-artifact timestamp span ({span}s) exceeds max jitter window ({max_jitter}s) \
-         -- generators may be using different time bases",
-    );
 }

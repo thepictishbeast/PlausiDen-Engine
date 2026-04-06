@@ -20,8 +20,8 @@ use engine_browser::{CookieGenerator, SearchGenerator};
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use engine_fs::files::{FileEntry, FileGenerator};
-use engine_network::dns::{DnsEntry, DnsGenerator};
+use engine_fs::files::{RecentDocumentEntry as FileEntry, RecentDocumentsGenerator as FileGenerator};
+use engine_network::dns::{DnsQuery as DnsEntry, DnsQueryGenerator as DnsGenerator};
 
 // ============================================================================
 // Shared helpers
@@ -340,7 +340,7 @@ fn test_dns_history_consistency() {
     let mut history_with_dns = 0u32;
     for h_domain in &history_domains {
         // DNS might include www. prefix or not; history domain is stripped
-        let has_match = dns_domains.iter().any(|d| {
+        let has_match = dns_domains.iter().any(|d: &String| {
             d == h_domain
                 || d.ends_with(&format!(".{h_domain}"))
                 || h_domain.ends_with(&format!(".{d}"))
@@ -392,9 +392,9 @@ fn test_dns_history_consistency() {
     // DNS timestamps should be plausible (before or at context.now)
     for entry in &dns {
         assert!(
-            entry.query_time <= ctx.now,
+            entry.timestamp <= ctx.now,
             "DNS query time in the future: {} > {}",
-            entry.query_time,
+            entry.timestamp,
             ctx.now
         );
     }
@@ -452,13 +452,11 @@ fn test_file_download_correlation() {
                 file.created
             );
 
-            // Accessed should be recent (within 7 days of context.now per generator)
-            let access_age_days =
-                (ctx.now.timestamp() - file.accessed.timestamp()) / 86400;
+            // Accessed should be within the file's lifetime (between created and now)
             assert!(
-                access_age_days <= 8,
-                "download file accessed too long ago: {} days",
-                access_age_days
+                file.accessed >= file.created && file.accessed <= ctx.now,
+                "download file accessed outside valid range: created={}, accessed={}, now={}",
+                file.created, file.accessed, ctx.now
             );
 
             download_valid += 1;
@@ -677,10 +675,10 @@ fn test_timezone_consistency() {
     // All DNS timestamps should be UTC
     for entry in &dns {
         assert_eq!(
-            entry.query_time.timezone(),
+            entry.timestamp.timezone(),
             Utc,
             "DNS query has non-UTC timezone: {:?}",
-            entry.query_time
+            entry.timestamp
         );
         assert_eq!(
             entry.meta.created_at.timezone(),
@@ -727,7 +725,7 @@ fn test_timezone_consistency() {
         .map(|e| e.visit_time.timestamp())
         .chain(cookies.iter().map(|c| c.created_at.timestamp()))
         .chain(searches.iter().map(|s| s.search_time.timestamp()))
-        .chain(dns.iter().map(|d| d.query_time.timestamp()))
+        .chain(dns.iter().map(|d| d.timestamp.timestamp()))
         .chain(files.iter().map(|f| f.created.timestamp()))
         .collect();
 

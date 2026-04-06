@@ -44,8 +44,22 @@ impl<T: Clone> Distribution<T> {
     }
 
     /// Add a weighted item.
+    ///
+    /// BUG ASSUMPTION: callers may pass NaN, infinity, or negative
+    /// weights, intentionally or otherwise. The earlier check
+    /// `weight <= 0.0` was `false` for NaN (every comparison with
+    /// NaN is false), so a NaN weight got pushed into `items`,
+    /// corrupted `total_weight`, and silently broke every
+    /// subsequent sample() call (the running tally arithmetic
+    /// produces NaN, which never satisfies `target <= 0.0`, so the
+    /// sampler always returned the last item).
+    ///
+    /// We now require finite, strictly-positive weights. Anything
+    /// else is silently dropped — the same shape as the old API.
     pub fn add(&mut self, value: T, weight: f64) {
-        if weight <= 0.0 { return; }
+        if !weight.is_finite() || weight <= 0.0 {
+            return;
+        }
         self.total_weight += weight;
         self.items.push(WeightedItem { value, weight });
     }
@@ -230,5 +244,62 @@ mod tests {
         b.add("x", 1.0);
         b.add("y", 1.0);
         assert_eq!(a.sample(), b.sample());
+    }
+
+    // REGRESSION-GUARD: the earlier `add` used `weight <= 0.0` which
+    // is `false` for NaN, so a NaN weight slipped past validation,
+    // poisoned `total_weight`, and broke every subsequent sample()
+    // call. The fix requires `weight.is_finite()` before the
+    // positivity check.
+    #[test]
+    fn test_add_rejects_nan_weight() {
+        let mut d = Distribution::new(42);
+        d.add("good", 1.0);
+        d.add("nan", f64::NAN);
+        assert_eq!(d.len(), 1, "NaN weight must be dropped");
+        assert_eq!(d.total_weight(), 1.0);
+    }
+
+    #[test]
+    fn test_add_rejects_infinity_weight() {
+        let mut d = Distribution::new(42);
+        d.add("good", 1.0);
+        d.add("inf", f64::INFINITY);
+        d.add("neg_inf", f64::NEG_INFINITY);
+        assert_eq!(d.len(), 1);
+        assert!(d.total_weight().is_finite());
+    }
+
+    #[test]
+    fn test_add_rejects_negative_weight() {
+        let mut d = Distribution::new(42);
+        d.add("good", 1.0);
+        d.add("bad", -2.5);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d.total_weight(), 1.0);
+    }
+
+    #[test]
+    fn test_sample_after_nan_attempt_still_works() {
+        // Defence-in-depth: even after a (rejected) NaN add, the
+        // sampler must continue to behave normally. If the NaN had
+        // slipped through, total_weight would be NaN and sample()
+        // would fall through to "return last item" forever.
+        let mut d = Distribution::new(42);
+        d.add("a", 1.0);
+        d.add("b", 1.0);
+        d.add("nan", f64::NAN);
+        d.add("c", 1.0);
+        // Sample many times — we should see a mix, not just "c".
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..200 {
+            if let Some(s) = d.sample() {
+                seen.insert(*s);
+            }
+        }
+        assert!(
+            seen.len() >= 2,
+            "sampler should produce a mix after NaN was rejected, got: {seen:?}",
+        );
     }
 }

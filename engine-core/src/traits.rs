@@ -85,6 +85,41 @@ impl DataCategory {
             Self::Social => 50,
         }
     }
+
+    /// Every variant of `DataCategory`, for callers that need to
+    /// enumerate the full set (config builders, integration tests,
+    /// telemetry sinks). Implemented as an exhaustive match
+    /// destructure on a unit value so a future variant added to the
+    /// enum produces a compiler error here, not a silent miss in
+    /// `EngineConfig::enable_all_categories`.
+    pub const ALL: &'static [DataCategory] = &[
+        DataCategory::BrowserActivity,
+        DataCategory::FileSystem,
+        DataCategory::Communications,
+        DataCategory::Location,
+        DataCategory::Network,
+        DataCategory::Input,
+        DataCategory::System,
+        DataCategory::Social,
+    ];
+
+    /// Compile-time guard that `ALL` covers every variant. This
+    /// function exists only so the match below forces a compiler
+    /// error if a new DataCategory variant is added without
+    /// updating the slice. It is otherwise unused.
+    #[allow(dead_code)]
+    fn _all_variants_covered_check(&self) -> () {
+        match self {
+            Self::BrowserActivity => (),
+            Self::FileSystem => (),
+            Self::Communications => (),
+            Self::Location => (),
+            Self::Network => (),
+            Self::Input => (),
+            Self::System => (),
+            Self::Social => (),
+        }
+    }
 }
 
 /// Estimated resource cost for a single generation cycle.

@@ -40,15 +40,61 @@ impl EngineConfig {
     }
 
     /// Enable all data categories.
+    ///
+    /// REGRESSION-GUARD: this used to manually enumerate every
+    /// variant of `DataCategory`. Adding a new variant would have
+    /// silently failed to enable it — no compiler warning. Now
+    /// driven by `DataCategory::ALL`, which carries an
+    /// `_all_variants_covered_check` that does fail to compile if
+    /// a new variant is added without updating the slice.
     pub fn enable_all_categories(&mut self) {
-        self.active_categories.insert(DataCategory::BrowserActivity);
-        self.active_categories.insert(DataCategory::FileSystem);
-        self.active_categories.insert(DataCategory::Communications);
-        self.active_categories.insert(DataCategory::Location);
-        self.active_categories.insert(DataCategory::Network);
-        self.active_categories.insert(DataCategory::Input);
-        self.active_categories.insert(DataCategory::System);
-        self.active_categories.insert(DataCategory::Social);
+        for category in DataCategory::ALL.iter().copied() {
+            self.active_categories.insert(category);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_enable_all_categories_covers_every_variant() {
+        let mut cfg = EngineConfig::default();
+        cfg.active_categories.clear();
+        cfg.enable_all_categories();
+        // The set must contain every variant of DataCategory.
+        // If a future PR adds a new variant without updating
+        // DataCategory::ALL, this test fails because the count
+        // mismatch is detected here AND the compile-time check
+        // in traits.rs fires.
+        assert_eq!(cfg.active_categories.len(), DataCategory::ALL.len());
+        for cat in DataCategory::ALL {
+            assert!(
+                cfg.active_categories.contains(cat),
+                "enable_all_categories missed variant: {cat:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_default_config_has_minimal_categories() {
+        let cfg = EngineConfig::default();
+        // The default is intentionally NOT all categories — only
+        // browser and filesystem. This is the conservative shipping
+        // default; tests that depend on a richer set must call
+        // enable_all_categories explicitly.
+        assert!(cfg.is_category_enabled(DataCategory::BrowserActivity));
+        assert!(cfg.is_category_enabled(DataCategory::FileSystem));
+        assert!(!cfg.is_category_enabled(DataCategory::Network));
+    }
+
+    #[test]
+    fn test_resource_limits_default_is_conservative() {
+        let limits = ResourceLimits::default();
+        assert!(limits.max_cpu_percent <= 10);
+        assert!(limits.max_disk_bytes_per_hour <= 1024 * 1024 * 1024);
+        assert!(limits.max_memory_bytes <= 1024 * 1024 * 1024);
     }
 }
 

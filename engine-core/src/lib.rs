@@ -23,6 +23,7 @@ pub mod profile;
 pub mod profile_mixer;
 pub mod rate_governor;
 pub mod schedule;
+pub mod seed_chain;
 pub mod timing_noise;
 pub mod traits;
 pub mod validator;

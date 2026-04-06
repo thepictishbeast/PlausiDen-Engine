@@ -43,7 +43,17 @@ impl OrganicScheduler {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> DateTime<Utc> {
         let hour = current.hour() as u8;
-        let adjusted_hour = ((hour as i8 + self.schedule.timezone_offset_hours) % 24) as u8;
+        // BUG ASSUMPTION: timezone_offset_hours can be negative (the
+        // typical UTC offset). The earlier `(hour as i8 + offset) % 24`
+        // used Rust's truncated remainder (negative for negative
+        // numerators) and then `as u8` wrapped it to ~250, which
+        // pushed `circadian_factor` permanently into the deep-sleep
+        // branch (250 > sleep + 1). The result was that any user
+        // with a negative TZ offset got the lowest possible activity
+        // factor every hour of the day. `is_active_hour` already
+        // uses `rem_euclid(24)`; this code was the lone holdout.
+        let adjusted_hour = (hour as i16 + self.schedule.timezone_offset_hours as i16)
+            .rem_euclid(24) as u8;
 
         // Base interval in seconds — varies by risk level
         let base_interval_secs = match self.risk_level {
@@ -333,5 +343,62 @@ mod tests {
             let t = scheduler.next_timestamp(now, &mut rng);
             assert!(t > now, "risk level {:?} must produce future timestamps", risk);
         }
+    }
+
+    // REGRESSION-GUARD: an earlier next_timestamp() used
+    //   ((hour as i8 + offset) % 24) as u8
+    // which silently produced ~250 for any negative TZ offset
+    // because Rust's `%` is truncated remainder (negative for
+    // negative numerators) and `as u8` wrapped the sign-extended
+    // value. circadian_factor(250) hit `hour > sleep + 1.0` and
+    // returned 0.05 unconditionally — every user with a negative
+    // UTC offset (i.e. North America) got the deepest-sleep activity
+    // factor 24/7. This test pins the fix.
+    //
+    // We can't directly assert the activity factor (it's private),
+    // but we CAN observe its effect: with deep-sleep factor (0.05)
+    // the interval is base_interval / 0.05 = 20x base. With a
+    // realistic factor (~0.9 for 14:00) the interval is base / 0.9.
+    // The two are an order of magnitude apart for the SAME wall-
+    // clock hour, so we just check the median interval is bounded.
+    #[test]
+    fn test_negative_timezone_offset_does_not_force_deep_sleep() {
+        // 14:00 UTC, with a -5h offset → 09:00 local — well inside
+        // the active "high" band of circadian_factor.
+        let schedule = ActivitySchedule {
+            wake_hour: 7,
+            sleep_hour: 23,
+            active_days: vec![0, 1, 2, 3, 4, 5, 6],
+            timezone_offset_hours: -5, // EST
+        };
+        let scheduler = OrganicScheduler::new(schedule, RiskLevel::Medium);
+        let mut rng = test_rng();
+        // Pin a specific UTC hour to remove wall-clock variance from
+        // the test.
+        let t0 = chrono::NaiveDate::from_ymd_opt(2026, 4, 4)
+            .unwrap()
+            .and_hms_opt(14, 0, 0)
+            .unwrap()
+            .and_utc();
+
+        // Sample many intervals — measure the median.
+        let mut intervals = Vec::with_capacity(100);
+        for _ in 0..100 {
+            let t1 = scheduler.next_timestamp(t0, &mut rng);
+            intervals.push((t1 - t0).num_seconds());
+        }
+        intervals.sort();
+        let median = intervals[intervals.len() / 2];
+
+        // Base interval at Medium risk = 120s. Deep-sleep factor
+        // 0.05 → 2400s; daytime factor (0.6 morning routine) → 200s.
+        // The buggy version was always at 2400±50% so anything
+        // below ~1200 is proof of the fix. We require the median to
+        // be below 1000s as a generous bound.
+        assert!(
+            median < 1000,
+            "median interval {median}s suggests deep-sleep factor \
+             is in effect — negative TZ offset bug regressed",
+        );
     }
 }

@@ -49,7 +49,10 @@ impl Default for CrashGenerator { fn default() -> Self { Self::new() } }
 
 impl DataGenerator for CrashGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
-        let (process, signal, code, bt) = CRASH_SCENARIOS.choose(rng).unwrap();
+        // SAFETY: CRASH_SCENARIOS is a non-empty const slice.
+        let (process, signal, code, bt) = CRASH_SCENARIOS
+            .choose(rng)
+            .expect("CRASH_SCENARIOS is a non-empty const slice");
         let days_ago = Uniform::new_inclusive(1i64, 180).sample(rng);
         let timestamp = context.now - Duration::days(days_ago);
         let has_core = Uniform::new_inclusive(0u32, 3).sample(rng) == 0;

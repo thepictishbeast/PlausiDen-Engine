@@ -135,7 +135,11 @@ impl DataGenerator for EngagementGenerator {
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
-        let platform = PLATFORMS.choose(rng).unwrap();
+        // SAFETY: PLATFORMS is a non-empty const slice.
+        let platform = PLATFORMS
+            .choose(rng)
+            .copied()
+            .expect("PLATFORMS is a non-empty const slice");
 
         // Follower counts: most users have 50–5000 followers.
         let followers = Uniform::new_inclusive(50u64, 5000).sample(rng);

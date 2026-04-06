@@ -210,7 +210,11 @@ impl DataGenerator for ContentGenerator {
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
-        let platform = PLATFORMS.choose(rng).unwrap();
+        // SAFETY: PLATFORMS is a non-empty const slice.
+        let platform = PLATFORMS
+            .choose(rng)
+            .copied()
+            .expect("PLATFORMS is a non-empty const slice");
 
         // Content type distribution: text (40%), photo (30%), story (20%), share (10%).
         let roll = Uniform::new_inclusive(0u32, 99).sample(rng);
@@ -223,7 +227,11 @@ impl DataGenerator for ContentGenerator {
 
         let body = match content_type {
             ContentType::TextPost => build_text_post(rng),
-            ContentType::PhotoCaption => CAPTION_TEMPLATES.choose(rng).unwrap().to_string(),
+            ContentType::PhotoCaption => CAPTION_TEMPLATES
+                .choose(rng)
+                .copied()
+                .expect("CAPTION_TEMPLATES is a non-empty const slice")
+                .to_string(),
             ContentType::StoryReel => String::new(),
             ContentType::ShareRepost => {
                 let quote_roll = Uniform::new_inclusive(0u32, 1).sample(rng);
@@ -252,7 +260,10 @@ impl DataGenerator for ContentGenerator {
         // Share metadata only for shares/reposts.
         let share_meta = if content_type == ContentType::ShareRepost {
             let orig_user_id = Uniform::new_inclusive(1000u32, 9999).sample(rng);
-            let orig_platform = PLATFORMS.choose(rng).unwrap();
+            let orig_platform = PLATFORMS
+                .choose(rng)
+                .copied()
+                .expect("PLATFORMS is a non-empty const slice");
             let quote = !body.is_empty();
             Some(ShareMetadata {
                 original_author: format!("user_{orig_user_id}"),
@@ -294,7 +305,11 @@ impl DataGenerator for ContentGenerator {
 /// Build a short text post by combining a template with an optional topic.
 /// Always stays within 280 characters.
 fn build_text_post(rng: &mut (impl RngCore + CryptoRng)) -> String {
-    let template = TEXT_TEMPLATES.choose(rng).unwrap();
+    // SAFETY: TEXT_TEMPLATES and TOPICS are non-empty const slices.
+    let template = TEXT_TEMPLATES
+        .choose(rng)
+        .copied()
+        .expect("TEXT_TEMPLATES is a non-empty const slice");
     // Half the time, append a topic if the template ends with a preposition-like word.
     let needs_topic = template.ends_with("about")
         || template.ends_with("with")
@@ -302,7 +317,10 @@ fn build_text_post(rng: &mut (impl RngCore + CryptoRng)) -> String {
         || template.ends_with("underrated")
         || template.ends_with("that");
     if needs_topic {
-        let topic = TOPICS.choose(rng).unwrap();
+        let topic = TOPICS
+            .choose(rng)
+            .copied()
+            .expect("TOPICS is a non-empty const slice");
         let candidate = format!("{template} {topic}.");
         // Truncate to 280 chars if somehow too long.
         if candidate.len() <= 280 {

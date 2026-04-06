@@ -55,7 +55,10 @@ impl Default for FlowGenerator { fn default() -> Self { Self::new() } }
 
 impl DataGenerator for FlowGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
-        let (port, proto) = COMMON_PORTS.choose(rng).unwrap();
+        // SAFETY: COMMON_PORTS is a non-empty const slice.
+        let (port, proto) = COMMON_PORTS
+            .choose(rng)
+            .expect("COMMON_PORTS is a non-empty const slice");
 
         let src_port = Uniform::new_inclusive(32768u16, 65535).sample(rng);
         let dst_ip = format!("{}.{}.{}.{}",

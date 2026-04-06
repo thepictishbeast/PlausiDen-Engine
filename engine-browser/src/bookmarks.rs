@@ -59,7 +59,11 @@ impl Default for BookmarkGenerator { fn default() -> Self { Self::new() } }
 
 impl DataGenerator for BookmarkGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
-        let (url, title, folder) = BOOKMARK_SITES.choose(rng).unwrap();
+        // SAFETY: BOOKMARK_SITES is a non-empty const slice — choose()
+        // only returns None on empty input. Annotated per AVP-2.
+        let (url, title, folder) = BOOKMARK_SITES
+            .choose(rng)
+            .expect("BOOKMARK_SITES is a non-empty const slice");
         let days_ago = Uniform::new_inclusive(1i64, 730).sample(rng);
         let added_at = context.now - Duration::days(days_ago);
         let meta = ArtifactMetadata::new(DataCategory::BrowserActivity, added_at, added_at, 256)?;

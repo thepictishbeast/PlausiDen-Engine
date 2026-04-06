@@ -274,22 +274,45 @@ impl HttpGenerator {
 
     /// Build a realistic URL from domain + path pools.
     fn build_url(rng: &mut (impl RngCore + CryptoRng)) -> String {
-        let domain = DOMAINS.choose(rng).unwrap();
-        let path = URL_PATHS.choose(rng).unwrap();
+        // SAFETY: DOMAINS and URL_PATHS are non-empty const slices.
+        let domain = DOMAINS
+            .choose(rng)
+            .copied()
+            .expect("DOMAINS is a non-empty const slice");
+        let path = URL_PATHS
+            .choose(rng)
+            .copied()
+            .expect("URL_PATHS is a non-empty const slice");
         format!("https://{domain}{path}")
     }
 
     /// Build request headers.
     fn build_request_headers(rng: &mut (impl RngCore + CryptoRng)) -> HashMap<String, String> {
         let mut h = HashMap::new();
+        // SAFETY: every const pool below is non-empty by construction.
         h.insert(
             "User-Agent".into(),
-            (*USER_AGENTS.choose(rng).unwrap()).into(),
+            USER_AGENTS
+                .choose(rng)
+                .copied()
+                .expect("USER_AGENTS is non-empty")
+                .into(),
         );
-        h.insert("Accept".into(), (*ACCEPT_HEADERS.choose(rng).unwrap()).into());
+        h.insert(
+            "Accept".into(),
+            ACCEPT_HEADERS
+                .choose(rng)
+                .copied()
+                .expect("ACCEPT_HEADERS is non-empty")
+                .into(),
+        );
         h.insert(
             "Accept-Language".into(),
-            (*ACCEPT_LANGUAGES.choose(rng).unwrap()).into(),
+            ACCEPT_LANGUAGES
+                .choose(rng)
+                .copied()
+                .expect("ACCEPT_LANGUAGES is non-empty")
+                .into(),
         );
         h.insert("Accept-Encoding".into(), "gzip, deflate, br".into());
         h.insert("Connection".into(), "keep-alive".into());
@@ -298,7 +321,11 @@ impl HttpGenerator {
         if Uniform::new_inclusive(0u32, 9).sample(rng) < 6 {
             h.insert(
                 "Referer".into(),
-                (*REFERER_DOMAINS.choose(rng).unwrap()).into(),
+                REFERER_DOMAINS
+                    .choose(rng)
+                    .copied()
+                    .expect("REFERER_DOMAINS is non-empty")
+                    .into(),
             );
         }
 
@@ -332,14 +359,22 @@ impl HttpGenerator {
         h.insert("Content-Length".into(), body_size.to_string());
         h.insert(
             "Cache-Control".into(),
-            (*CACHE_CONTROL_VALUES.choose(rng).unwrap()).into(),
+            CACHE_CONTROL_VALUES
+                .choose(rng)
+                .copied()
+                .expect("CACHE_CONTROL_VALUES is non-empty")
+                .into(),
         );
         h.insert("Server".into(), "cloudflare".into());
 
         // Set-Cookie — present ~40% of the time
         if Uniform::new_inclusive(0u32, 9).sample(rng) < 4 {
             let cookie_names = ["_ga", "_gid", "csrf_token", "pref", "lang"];
-            let name = cookie_names.choose(rng).unwrap();
+            // SAFETY: literal array is non-empty.
+            let name = cookie_names
+                .choose(rng)
+                .copied()
+                .expect("cookie_names array literal is non-empty");
             let val_len = Uniform::new_inclusive(8usize, 32).sample(rng);
             let val: String = (0..val_len)
                 .map(|_| {
@@ -409,8 +444,11 @@ impl DataGenerator for HttpGenerator {
         let url = Self::build_url(rng);
         let status_code = Self::pick_status_code(rng);
 
-        // Pick content type and matching body size
-        let (content_type, min_size, max_size) = CONTENT_TYPES.choose(rng).unwrap();
+        // Pick content type and matching body size.
+        // SAFETY: CONTENT_TYPES is non-empty by construction.
+        let (content_type, min_size, max_size) = CONTENT_TYPES
+            .choose(rng)
+            .expect("CONTENT_TYPES is a non-empty const slice");
         let body_size_bytes = Uniform::new_inclusive(*min_size, *max_size).sample(rng);
 
         // For 304 Not Modified, body is empty

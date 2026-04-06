@@ -155,7 +155,14 @@ impl DataGenerator for LogGenerator {
         let templates = log_templates();
         let template = templates.choose(rng).ok_or_else(|| EngineError::InvalidContext("no log templates".into()))?;
 
-        let message = template.messages.choose(rng).unwrap();
+        // SAFETY: every log template's `messages` slice is non-empty by
+        // construction in log_templates(); the template was just
+        // selected from a slice constructed by the same function.
+        let message = template
+            .messages
+            .choose(rng)
+            .copied()
+            .expect("log template messages slice is non-empty");
         let pid = if template.pid_range.0 == template.pid_range.1 {
             template.pid_range.0
         } else {

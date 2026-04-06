@@ -511,7 +511,16 @@ impl DataGenerator for TlsGenerator {
         let browser = Self::pick_profile(rng);
 
         // Pick an SNI domain.
-        let server_name = (*SNI_DOMAINS.choose(rng).unwrap()).to_string();
+        // SAFETY/FALLBACK: SNI_DOMAINS is a non-empty const slice, so
+        // .choose() returning None would only mean a future refactor
+        // has emptied it. We fall back to a literal placeholder rather
+        // than unwrap so a doctrine-violating empty slice cannot
+        // panic the generator at runtime.
+        let server_name = SNI_DOMAINS
+            .choose(rng)
+            .copied()
+            .unwrap_or("example.com")
+            .to_string();
 
         // Compute fingerprints.
         let ja3_hash = compute_ja3(browser);

@@ -52,7 +52,10 @@ impl Default for InstallGenerator { fn default() -> Self { Self::new() } }
 
 impl DataGenerator for InstallGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
-        let (name, version, size) = COMMON_PACKAGES.choose(rng).unwrap();
+        // SAFETY: COMMON_PACKAGES is a non-empty const slice.
+        let (name, version, size) = COMMON_PACKAGES
+            .choose(rng)
+            .expect("COMMON_PACKAGES is a non-empty const slice");
         let action = match Uniform::new_inclusive(0u32, 9).sample(rng) {
             0..=5 => InstallAction::Install,
             6..=8 => InstallAction::Upgrade,

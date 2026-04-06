@@ -69,11 +69,17 @@ impl DataGenerator for ProcessGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
         let is_system = Uniform::new_inclusive(0u32, 2).sample(rng) == 0;
 
+        // SAFETY: SYSTEM_PROCESSES and USER_PROCESSES are non-empty
+        // const slices.
         let (name, cmdline, user, base_rss) = if is_system {
-            let p = SYSTEM_PROCESSES.choose(rng).unwrap();
+            let p = SYSTEM_PROCESSES
+                .choose(rng)
+                .expect("SYSTEM_PROCESSES is a non-empty const slice");
             (p.0, p.1, p.2.to_string(), p.3)
         } else {
-            let p = USER_PROCESSES.choose(rng).unwrap();
+            let p = USER_PROCESSES
+                .choose(rng)
+                .expect("USER_PROCESSES is a non-empty const slice");
             (p.0, p.1, "user".to_string(), p.2)
         };
 

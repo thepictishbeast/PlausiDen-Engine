@@ -54,7 +54,10 @@ impl Default for DownloadGenerator { fn default() -> Self { Self::new() } }
 
 impl DataGenerator for DownloadGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
-        let tpl = DOWNLOAD_TEMPLATES.choose(rng).unwrap();
+        // SAFETY: DOWNLOAD_TEMPLATES is a non-empty const slice.
+        let tpl = DOWNLOAD_TEMPLATES
+            .choose(rng)
+            .expect("DOWNLOAD_TEMPLATES is a non-empty const slice");
         let suffix = Uniform::new_inclusive(1000u32, 9999).sample(rng);
         let filename = format!("{}_{}", suffix, tpl.filename);
         let url = format!("https://{}{}{}", tpl.domain, tpl.path, filename);

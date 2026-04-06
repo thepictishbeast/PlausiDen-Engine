@@ -66,7 +66,10 @@ impl Default for ExifGenerator { fn default() -> Self { Self::new() } }
 
 impl DataGenerator for ExifGenerator {
     fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
-        let (make, model, w, h) = CAMERAS.choose(rng).unwrap();
+        // SAFETY: CAMERAS is a non-empty const slice.
+        let (make, model, w, h) = CAMERAS
+            .choose(rng)
+            .expect("CAMERAS is a non-empty const slice");
 
         // GPS coordinates — continental US default
         let lat = Uniform::new(25.0f64, 49.0).sample(rng);
@@ -77,8 +80,15 @@ impl DataGenerator for ExifGenerator {
         let dt = context.now - Duration::days(days_ago);
 
         let focal = Uniform::new(2.0f32, 200.0).sample(rng);
-        let iso = [100, 200, 400, 800, 1600, 3200].choose(rng).unwrap();
-        let exposure = ["1/30", "1/60", "1/125", "1/250", "1/500", "1/1000"].choose(rng).unwrap();
+        // SAFETY: literal arrays are non-empty by construction.
+        let iso = [100, 200, 400, 800, 1600, 3200]
+            .choose(rng)
+            .copied()
+            .expect("ISO array literal is non-empty");
+        let exposure = ["1/30", "1/60", "1/125", "1/250", "1/500", "1/1000"]
+            .choose(rng)
+            .copied()
+            .expect("exposure array literal is non-empty");
         let img_num = Uniform::new_inclusive(1000u32, 9999).sample(rng);
 
         let meta = ArtifactMetadata::new(DataCategory::Location, dt, dt, 4096)?;
@@ -89,7 +99,7 @@ impl DataGenerator for ExifGenerator {
             gps_latitude: lat, gps_longitude: lon, gps_altitude: alt,
             datetime_original: dt, image_width: *w, image_height: *h,
             focal_length_mm: focal, exposure_time: exposure.to_string(),
-            iso_speed: *iso, orientation: 1,
+            iso_speed: iso, orientation: 1,
         };
         entry.validate_plausibility()?;
         Ok(Box::new(entry))

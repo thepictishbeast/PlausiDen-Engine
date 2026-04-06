@@ -152,12 +152,30 @@ impl ProfileMixer {
     }
 
     /// Mix multiple archetypes with weights (summing to 1.0).
+    ///
+    /// BUG ASSUMPTION: callers may pass mixes that include unknown
+    /// archetype ids (typos, stale config). The earlier
+    /// implementation silently dropped unknown ids and, if EVERY id
+    /// was unknown, returned `Some(Archetype)` with degenerate
+    /// fields (session_minutes = (u32::MAX, 0), empty weights).
+    /// That looked like success but produced an unusable profile.
+    ///
+    /// The fix is to recompute total_weight from the IDs that were
+    /// actually found and refuse if the surviving total is zero.
+    /// Returns None if the input is empty, every weight is zero, or
+    /// no requested archetype id exists in the registry.
     pub fn mix(&self, mix: &[(String, f64)]) -> Option<Archetype> {
         if mix.is_empty() {
             return None;
         }
-        let total_weight: f64 = mix.iter().map(|(_, w)| *w).sum();
-        if total_weight == 0.0 {
+
+        // Total weight over the SURVIVING ids, not the requested
+        // ones. An entry with an unknown id contributes zero.
+        let surviving_total: f64 = mix
+            .iter()
+            .filter_map(|(id, w)| self.archetypes.get(id).map(|_| *w))
+            .sum();
+        if surviving_total <= 0.0 {
             return None;
         }
 
@@ -168,9 +186,10 @@ impl ProfileMixer {
         let mut min_session: u32 = u32::MAX;
         let mut max_session: u32 = 0;
         let mut label_parts = Vec::new();
+        let mut applied = 0usize;
 
         for (id, weight) in mix {
-            let normalized = weight / total_weight;
+            let normalized = weight / surviving_total;
             if let Some(arch) = self.archetypes.get(id) {
                 for (k, v) in &arch.weights {
                     *combined_weights.entry(k.clone()).or_insert(0.0) += v * normalized;
@@ -181,7 +200,15 @@ impl ProfileMixer {
                 if arch.session_minutes.0 < min_session { min_session = arch.session_minutes.0; }
                 if arch.session_minutes.1 > max_session { max_session = arch.session_minutes.1; }
                 label_parts.push(arch.label.clone());
+                applied += 1;
             }
+        }
+
+        // Defence in depth: if surviving_total > 0 but applied == 0
+        // we are in an inconsistent state — refuse rather than emit
+        // a corrupt Archetype with sentinel session_minutes.
+        if applied == 0 {
+            return None;
         }
 
         Some(Archetype {
@@ -313,5 +340,66 @@ mod tests {
     fn test_archetype_count() {
         let m = ProfileMixer::new();
         assert_eq!(m.archetype_count(), 5);
+    }
+
+    // REGRESSION-GUARD: an earlier mix() returned Some(Archetype) for
+    // a request whose every id was unknown, with degenerate
+    // session_minutes = (u32::MAX, 0) and empty weights. The fix is
+    // to refuse the mix when the surviving (recognised) weight is
+    // zero.
+    #[test]
+    fn test_mix_all_unknown_ids_returns_none() {
+        let m = ProfileMixer::new();
+        let result = m.mix(&[
+            ("ghost".into(), 1.0),
+            ("phantom".into(), 0.5),
+        ]);
+        assert!(
+            result.is_none(),
+            "mix of only unknown ids must return None, got: {:?}",
+            result.map(|a| a.session_minutes),
+        );
+    }
+
+    #[test]
+    fn test_mix_partial_unknown_ids_uses_surviving_only() {
+        // One known + one unknown — surviving-only should still
+        // produce a valid result whose weights match the known one
+        // exactly (after re-normalising over the surviving total).
+        let m = ProfileMixer::new();
+        let result = m
+            .mix(&[
+                ("office".into(), 0.5),
+                ("ghost".into(), 0.5),
+            ])
+            .expect("should still produce a result with one known id");
+        // session_minutes should NOT be the sentinel pair.
+        assert!(result.session_minutes.0 < result.session_minutes.1);
+        // Weights should match the office archetype (within
+        // floating tolerance).
+        let office = Archetype::office_worker();
+        for (k, v) in &office.weights {
+            let mixed = result
+                .weights
+                .get(k)
+                .copied()
+                .expect("office weight key missing from mix");
+            assert!(
+                (mixed - v).abs() < 1e-9,
+                "weight {k} drifted: mix={mixed}, office={v}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_mix_session_minutes_never_sentinel_after_fix() {
+        // Defence-in-depth check: after the fix, no successful mix
+        // should report session_minutes.0 == u32::MAX or .1 == 0.
+        let m = ProfileMixer::new();
+        let result = m
+            .mix(&[("office".into(), 1.0)])
+            .expect("known id must succeed");
+        assert!(result.session_minutes.0 < u32::MAX);
+        assert!(result.session_minutes.1 > 0);
     }
 }

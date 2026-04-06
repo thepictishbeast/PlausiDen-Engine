@@ -10,7 +10,13 @@ pub enum Rule {
     NotEmpty,
     /// Field must match one of the allowed values.
     AllowedValues(Vec<String>),
-    /// Field length must be in [min, max].
+    /// Field length must be in [min, max], measured in BYTES, not
+    /// in `char`s. For ASCII-only fields the two are the same; for
+    /// multibyte text (UTF-8 emoji, CJK, accented Latin) a 5-char
+    /// emoji string has byte length ≈ 20 and would fail
+    /// `LengthRange(5, 10)`. Callers that want char-length semantics
+    /// should multiply their bounds by 4 (the maximum UTF-8 char
+    /// width) or pre-validate the field separately.
     LengthRange(usize, usize),
     /// Field must be parseable as a u64.
     IsInteger,
@@ -221,11 +227,43 @@ mod tests {
         assert_eq!(issues.len(), 1);
     }
 
+    // REGRESSION-GUARD: the previous version of this test was a
+    // no-op — `!v.validate(...).is_empty() == false` simplifies to
+    // `is_empty() == true`, which passes vacuously and never
+    // exercised the failure path. Replaced with explicit positive
+    // and negative cases for both ends of the range.
     #[test]
     fn test_length_range() {
         let mut v = ArtifactValidator::new();
         v.add_rule("title", Rule::LengthRange(5, 100));
-        assert!(!v.validate(&artifact(&[("title", "valid title")])).is_empty() == false);
+        // In-range value should produce no issues.
+        assert!(
+            v.validate(&artifact(&[("title", "valid title")])).is_empty(),
+            "an 11-char title in [5, 100] should produce no issues",
+        );
+        // Too-short value should produce a LengthRange issue.
+        let short_issues = v.validate(&artifact(&[("title", "hi")]));
+        assert_eq!(short_issues.len(), 1);
+        assert_eq!(short_issues[0].rule, "LengthRange");
+        // Too-long value should also produce a LengthRange issue.
+        let long_value = "x".repeat(200);
+        let long_issues = v.validate(&artifact(&[("title", long_value.as_str())]));
+        assert_eq!(long_issues.len(), 1);
+        assert_eq!(long_issues[0].rule, "LengthRange");
+    }
+
+    #[test]
+    fn test_length_range_byte_semantics_documented() {
+        // Document the byte-vs-char gotcha: a 1-emoji string is
+        // bytes_len = 4 (in UTF-8), so LengthRange(1, 3) rejects it
+        // even though it's "1 character".
+        let mut v = ArtifactValidator::new();
+        v.add_rule("emoji", Rule::LengthRange(1, 3));
+        let issues = v.validate(&artifact(&[("emoji", "\u{1F600}")])); // grinning face
+        assert!(
+            !issues.is_empty(),
+            "1-emoji UTF-8 string is 4 bytes, must trip LengthRange(1, 3)",
+        );
     }
 
     #[test]

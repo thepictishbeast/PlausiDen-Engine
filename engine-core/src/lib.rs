@@ -16,6 +16,7 @@ pub mod artifact;
 pub mod config;
 pub mod corpus;
 pub mod dedup;
+pub mod distinguisher;
 pub mod distribution;
 pub mod entropy;
 pub mod entropy_analysis;

@@ -3,7 +3,7 @@ name = "engine-fs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "PlausiDen fs artifact generation (scaffold)"
+description = "PlausiDen filesystem artifact generation — files, metadata, thumbnails, trash"
 
 [dependencies]
 engine-core = { workspace = true }
@@ -11,5 +11,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
 rand = { workspace = true }
+rand_chacha = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+md-5 = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

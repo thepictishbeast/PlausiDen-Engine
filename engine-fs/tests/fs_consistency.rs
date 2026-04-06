@@ -6,17 +6,17 @@
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use engine_fs::files::{FileEntry, FileGenerator};
-use engine_fs::metadata::{MetadataEntry, MetadataGenerator};
-use engine_fs::thumbnails::{ThumbnailEntry, ThumbnailGenerator};
+use engine_fs::files::{RecentDocumentEntry, RecentDocumentsGenerator};
+use engine_fs::metadata::{FileMetadataEntry, FileMetadataGenerator};
+use engine_fs::thumbnails::{ThumbnailCacheEntry, ThumbnailCacheGenerator};
 use engine_fs::trash::{TrashEntry, TrashGenerator};
 
 // ---------------------------------------------------------------------------
 // Helpers — generate & deserialize in one step
 // ---------------------------------------------------------------------------
 
-fn make_file(seed: u64) -> FileEntry {
-    let generator = FileGenerator::new();
+fn make_file(seed: u64) -> RecentDocumentEntry {
+    let generator = RecentDocumentsGenerator::new();
     let profile = UserProfile::default();
     let ctx = GenerationContext::new();
     let mut rng = seeded_rng(seed);
@@ -24,8 +24,8 @@ fn make_file(seed: u64) -> FileEntry {
     serde_json::from_slice(&artifact.to_bytes().unwrap()).unwrap()
 }
 
-fn make_thumbnail(seed: u64) -> ThumbnailEntry {
-    let generator = ThumbnailGenerator::new();
+fn make_thumbnail(seed: u64) -> ThumbnailCacheEntry {
+    let generator = ThumbnailCacheGenerator::new();
     let profile = UserProfile::default();
     let ctx = GenerationContext::new();
     let mut rng = seeded_rng(seed);
@@ -42,8 +42,8 @@ fn make_trash(seed: u64) -> TrashEntry {
     serde_json::from_slice(&artifact.to_bytes().unwrap()).unwrap()
 }
 
-fn make_metadata(seed: u64) -> MetadataEntry {
-    let generator = MetadataGenerator::new();
+fn make_metadata(seed: u64) -> FileMetadataEntry {
+    let generator = FileMetadataGenerator::new();
     let profile = UserProfile::default();
     let ctx = GenerationContext::new();
     let mut rng = seeded_rng(seed);
@@ -110,9 +110,9 @@ fn thumbnail_uris_point_to_cache() {
     for seed in 0..500 {
         let entry = make_thumbnail(seed);
         assert!(
-            entry.thumbnail_uri.contains(".cache/thumbnails"),
-            "seed {seed}: thumbnail_uri '{}' does not reference a cache directory",
-            entry.thumbnail_uri,
+            entry.thumbnail_path.contains(".cache/thumbnails"),
+            "seed {seed}: thumbnail_path '{}' does not reference a cache directory",
+            entry.thumbnail_path,
         );
     }
 }
@@ -126,11 +126,11 @@ fn trash_deleted_at_after_artifact_creation() {
     for seed in 0..500 {
         let entry = make_trash(seed);
         // The artifact's own metadata created_at represents when the trash
-        // record was made — deleted_at should be >= that timestamp.
+        // record was made — deletion_date should be >= that timestamp.
         assert!(
-            entry.deleted_at >= entry.meta.created_at,
-            "seed {seed}: deleted_at ({}) < meta.created_at ({}) for '{}'",
-            entry.deleted_at,
+            entry.deletion_date >= entry.meta.created_at,
+            "seed {seed}: deletion_date ({}) < meta.created_at ({}) for '{}'",
+            entry.deletion_date,
             entry.meta.created_at,
             entry.original_path,
         );
@@ -213,10 +213,10 @@ fn stress_500_entries_all_generators() {
     let profile = UserProfile::default();
     let ctx = GenerationContext::new();
 
-    let file_gen = FileGenerator::new();
-    let thumb_gen = ThumbnailGenerator::new();
+    let file_gen = RecentDocumentsGenerator::new();
+    let thumb_gen = ThumbnailCacheGenerator::new();
     let trash_gen = TrashGenerator::new();
-    let meta_gen = MetadataGenerator::new();
+    let meta_gen = FileMetadataGenerator::new();
 
     for seed in 0..500 {
         let mut rng = seeded_rng(seed);

@@ -16,6 +16,7 @@ pub mod artifact;
 pub mod config;
 pub mod dedup;
 pub mod entropy;
+pub mod entropy_analysis;
 pub mod error;
 pub mod paranoia;
 pub mod profile;

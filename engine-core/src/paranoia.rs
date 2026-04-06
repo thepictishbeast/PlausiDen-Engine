@@ -16,21 +16,32 @@ use crate::traits::{Artifact, ArtifactMetadata, DataCategory};
 /// This is NOT the same as `validate_plausibility()` — that checks
 /// forensic plausibility. This checks internal consistency, memory safety
 /// invariants, and catches bugs in the generator itself.
+///
+/// Check order matters for adversarial inputs. `validate_size_bounds`
+/// MUST run before `validate_serialization_integrity` because the
+/// latter does a full `serde_json::from_slice::<Value>` parse — which
+/// allocates an unbounded-size tree of `Value` nodes. A 1 GB
+/// adversarial artifact would allocate 2–3 GB before the 10 MB size
+/// check fires if the checks ran in the other order.
 pub fn deep_validate_artifact(artifact: &dyn Artifact) -> Result<()> {
     let meta = artifact.metadata();
 
     // 1. Timestamp sanity (redundant with plausibility check — intentionally duplicated)
     validate_timestamps(meta)?;
 
-    // 2. Serialization roundtrip — if to_bytes() produces something
-    //    that can't be deserialized, the generator is broken
+    // 2. Produce the serialized bytes ONCE.
     let bytes = artifact.to_bytes()?;
-    validate_serialization_integrity(&bytes)?;
 
-    // 3. Size sanity — detect memory corruption or unbounded generation
+    // 3. Size sanity FIRST — bound the allocation before the JSON
+    //    parser gets a chance to walk a hostile payload. See
+    //    function-level doc above for the DOS rationale.
     validate_size_bounds(&bytes, meta)?;
 
-    // 4. Category consistency
+    // 4. Serialization roundtrip — now safe to parse because size
+    //    is capped at 10 MB by the previous step.
+    validate_serialization_integrity(&bytes)?;
+
+    // 5. Category consistency
     validate_category(meta)?;
 
     Ok(())
@@ -265,5 +276,87 @@ mod tests {
         };
         let result = validate_size_bounds(&huge, &meta);
         assert!(result.is_err());
+    }
+
+    /// Mock artifact that reports a small metadata size but returns
+    /// an adversarial 11 MB blob from `to_bytes`. Used to prove the
+    /// size bound check fires BEFORE the JSON parser walks a hostile
+    /// payload.
+    struct OversizedMockArtifact {
+        meta: ArtifactMetadata,
+        blob: Vec<u8>,
+    }
+
+    impl Artifact for OversizedMockArtifact {
+        fn metadata(&self) -> &ArtifactMetadata {
+            &self.meta
+        }
+        fn validate_plausibility(&self) -> Result<()> {
+            Ok(())
+        }
+        fn to_bytes(&self) -> Result<Vec<u8>> {
+            Ok(self.blob.clone())
+        }
+    }
+
+    // REGRESSION-GUARD: validate_size_bounds must run BEFORE
+    // validate_serialization_integrity inside deep_validate_artifact.
+    // Earlier version parsed the full byte buffer as JSON before
+    // checking its size, letting a 1 GB adversarial artifact allocate
+    // gigabytes of Value nodes before the 10 MB cap fired.
+    //
+    // This test constructs an 11 MB blob of *invalid* JSON bytes.
+    // If size-check runs first, we get the size error (correct).
+    // If JSON-check runs first, we get the JSON error (the old,
+    // unsafe behaviour — the parser would have walked 11 MB already).
+    #[test]
+    fn test_deep_validate_size_check_runs_before_json_parse() {
+        let meta = ArtifactMetadata {
+            id: uuid::Uuid::new_v4(),
+            category: DataCategory::BrowserActivity,
+            created_at: chrono::Utc::now(),
+            modified_at: chrono::Utc::now(),
+            size_bytes: 100,
+        };
+        // 11 MB of non-JSON bytes. If JSON parse runs before size
+        // check the error message will say "not valid UTF-8" or
+        // "not valid JSON"; if size check runs first it will say
+        // "exceeds 10 MB limit".
+        let blob = vec![0xFFu8; 11 * 1024 * 1024];
+        let artifact = OversizedMockArtifact { meta, blob };
+        let err = deep_validate_artifact(&artifact)
+            .expect_err("11 MB artifact must fail validation");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("exceeds 10 MB limit"),
+            "size check did not run first: error was {msg:?}",
+        );
+    }
+
+    #[test]
+    fn test_deep_validate_accepts_small_valid_json_artifact() {
+        struct GoodMock {
+            meta: ArtifactMetadata,
+        }
+        impl Artifact for GoodMock {
+            fn metadata(&self) -> &ArtifactMetadata {
+                &self.meta
+            }
+            fn validate_plausibility(&self) -> Result<()> {
+                Ok(())
+            }
+            fn to_bytes(&self) -> Result<Vec<u8>> {
+                Ok(br#"{"ok":true}"#.to_vec())
+            }
+        }
+        let meta = ArtifactMetadata {
+            id: uuid::Uuid::new_v4(),
+            category: DataCategory::BrowserActivity,
+            created_at: chrono::Utc::now(),
+            modified_at: chrono::Utc::now(),
+            size_bytes: 11,
+        };
+        let artifact = GoodMock { meta };
+        assert!(deep_validate_artifact(&artifact).is_ok());
     }
 }

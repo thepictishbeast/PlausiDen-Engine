@@ -14,6 +14,7 @@
 
 pub mod artifact;
 pub mod config;
+pub mod corpus;
 pub mod dedup;
 pub mod distribution;
 pub mod entropy;

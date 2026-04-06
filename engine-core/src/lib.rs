@@ -25,6 +25,7 @@ pub mod rate_governor;
 pub mod schedule;
 pub mod timing_noise;
 pub mod traits;
+pub mod validator;
 
 // Re-export primary types for convenience.
 pub use config::EngineConfig;

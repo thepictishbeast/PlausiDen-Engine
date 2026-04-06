@@ -146,6 +146,16 @@ impl Artifact for EmailHeaderEntry {
             });
         }
 
+        // Defence-in-depth: From and To must not be identical. The
+        // generator now retries on collision (see generate()), but a
+        // serialized artifact loaded from disk could still have the
+        // bug, so the validator catches it too.
+        if self.from == self.to {
+            return Err(EngineError::ImplausibleArtifact {
+                reason: format!("From and To are identical: {}", self.from),
+            });
+        }
+
         if self.subject.is_empty() {
             return Err(EngineError::ImplausibleArtifact {
                 reason: "Subject header is empty".to_string(),
@@ -293,7 +303,22 @@ impl DataGenerator for EmailHeaderGenerator {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
         let from = Self::generate_address(rng)?;
-        let to = Self::generate_address(rng)?;
+        // BUG ASSUMPTION: generate_address draws independently from
+        // small const pools (FIRST_NAMES, LAST_NAMES, EMAIL_DOMAINS).
+        // Two consecutive calls can collide — birthday-paradox math
+        // says ~1 in N collisions for N entries, which becomes
+        // visible at scale. The validator now refuses From == To, so
+        // a colliding generation would propagate as an error rather
+        // than a forensically implausible artifact. We retry up to
+        // 10 times before giving up; in practice the very first
+        // retry succeeds.
+        let mut to = Self::generate_address(rng)?;
+        for _ in 0..10 {
+            if to != from {
+                break;
+            }
+            to = Self::generate_address(rng)?;
+        }
         let subject = Self::generate_subject(rng)?;
         let sent_at = Self::generate_sent_at(context, rng);
         let date = sent_at.format("%a, %d %b %Y %H:%M:%S +0000").to_string();
@@ -393,6 +418,29 @@ mod tests {
                 .unwrap()
                 .validate_plausibility()
                 .unwrap_or_else(|err| panic!("entry {s} failed: {err}"));
+        }
+    }
+
+    // REGRESSION-GUARD: generate_address draws independently from
+    // small const pools (FIRST_NAMES, LAST_NAMES, EMAIL_DOMAINS), so
+    // two consecutive calls can collide and produce From == To. The
+    // fix is a retry loop in generate() and a defence-in-depth
+    // check in validate_plausibility(). This test sweeps 2000 seeds
+    // and asserts no entry has From == To.
+    #[test]
+    fn test_from_to_never_identical() {
+        let g = EmailHeaderGenerator::new();
+        let p = test_profile();
+        let c = GenerationContext::new();
+        for s in 0..2000 {
+            let mut r = seeded_rng(s);
+            let a = g.generate(&p, &c, &mut r).unwrap();
+            let b = a.to_bytes().unwrap();
+            let e: EmailHeaderEntry = serde_json::from_slice(&b).unwrap();
+            assert_ne!(
+                e.from, e.to,
+                "seed {s}: From == To collision was not retried",
+            );
         }
     }
 

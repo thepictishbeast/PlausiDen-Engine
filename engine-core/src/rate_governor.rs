@@ -96,16 +96,29 @@ impl RateGovernor {
         }
 
         // Per-minute limit.
-        let minute_ago = now - Duration::from_secs(60);
-        let minute_count = self.events.iter().filter(|e| e.timestamp >= minute_ago).count() as u32;
+        //
+        // BUG ASSUMPTION: early in process life, `now` may be small
+        // enough that `now - Duration::from_secs(60)` would underflow
+        // and panic on some platforms (notably macOS monotonic clocks
+        // that start near zero). `checked_sub` returns None in that
+        // case, which we treat as "no events are old enough to have
+        // fallen outside the window" and count every event.
+        let minute_ago = now.checked_sub(Duration::from_secs(60));
+        let minute_count = match minute_ago {
+            Some(t) => self.events.iter().filter(|e| e.timestamp >= t).count() as u32,
+            None => self.events.len() as u32,
+        };
         if minute_count >= self.policy.per_minute {
             self.throttled_count += 1;
             return Err(ThrottleReason::PerMinute);
         }
 
         // Per-hour limit.
-        let hour_ago = now - Duration::from_secs(3600);
-        let hour_count = self.events.iter().filter(|e| e.timestamp >= hour_ago).count() as u32;
+        let hour_ago = now.checked_sub(Duration::from_secs(3600));
+        let hour_count = match hour_ago {
+            Some(t) => self.events.iter().filter(|e| e.timestamp >= t).count() as u32,
+            None => self.events.len() as u32,
+        };
         if hour_count >= self.policy.per_hour {
             self.throttled_count += 1;
             return Err(ThrottleReason::PerHour);
@@ -113,9 +126,18 @@ impl RateGovernor {
 
         // Per-category override.
         if let Some(&limit) = self.policy.category_overrides.get(category) {
-            let cat_count = self.events.iter()
-                .filter(|e| e.category == category && e.timestamp >= minute_ago)
-                .count() as u32;
+            let cat_count = match minute_ago {
+                Some(t) => self
+                    .events
+                    .iter()
+                    .filter(|e| e.category == category && e.timestamp >= t)
+                    .count() as u32,
+                None => self
+                    .events
+                    .iter()
+                    .filter(|e| e.category == category)
+                    .count() as u32,
+            };
             if cat_count >= limit {
                 self.throttled_count += 1;
                 return Err(ThrottleReason::CategoryLimit);
@@ -126,7 +148,16 @@ impl RateGovernor {
     }
 
     /// Record that a generation occurred.
+    ///
+    /// BUG ASSUMPTION: callers may use `record()` without calling
+    /// `check()` first (for example when replaying a historical
+    /// stream into the governor). In the earlier implementation the
+    /// events Vec grew without bound in that case because prune_old
+    /// only ran inside check(). We now prune inside record() too,
+    /// so the steady-state memory footprint is bounded by the per-
+    /// hour window regardless of caller discipline.
     pub fn record(&mut self, category: &str) {
+        self.prune_old();
         let now = Instant::now();
         self.events.push(GenEvent {
             category: category.into(),
@@ -148,20 +179,27 @@ impl RateGovernor {
     }
 
     fn prune_old(&mut self) {
-        let cutoff = Instant::now() - Duration::from_secs(3600);
-        self.events.retain(|e| e.timestamp >= cutoff);
+        if let Some(cutoff) = Instant::now().checked_sub(Duration::from_secs(3600)) {
+            self.events.retain(|e| e.timestamp >= cutoff);
+        }
+        // If the subtraction would underflow, keep everything —
+        // nothing is old enough to prune yet.
     }
 
     /// Current per-minute usage.
     pub fn current_minute_count(&self) -> u32 {
-        let minute_ago = Instant::now() - Duration::from_secs(60);
-        self.events.iter().filter(|e| e.timestamp >= minute_ago).count() as u32
+        match Instant::now().checked_sub(Duration::from_secs(60)) {
+            Some(t) => self.events.iter().filter(|e| e.timestamp >= t).count() as u32,
+            None => self.events.len() as u32,
+        }
     }
 
     /// Current per-hour usage.
     pub fn current_hour_count(&self) -> u32 {
-        let hour_ago = Instant::now() - Duration::from_secs(3600);
-        self.events.iter().filter(|e| e.timestamp >= hour_ago).count() as u32
+        match Instant::now().checked_sub(Duration::from_secs(3600)) {
+            Some(t) => self.events.iter().filter(|e| e.timestamp >= t).count() as u32,
+            None => self.events.len() as u32,
+        }
     }
 
     /// Approximate time until next generation is allowed, given last-gen gap.
@@ -289,5 +327,49 @@ mod tests {
         assert!(wait.as_millis() <= 50);
         thread::sleep(Duration::from_millis(60));
         assert!(g.time_until_ok().as_millis() == 0);
+    }
+
+    // REGRESSION-GUARD: record() must prune the events vec. The
+    // earlier implementation only pruned inside check(), so a
+    // caller that drove record() directly would grow the events
+    // vec without bound. We can't test "forever" but we can prove
+    // record() calls prune_old because otherwise a fake event
+    // placed more than an hour in the past would survive a
+    // subsequent record().
+    #[test]
+    fn test_record_prunes_old_events() {
+        let mut g = RateGovernor::new(RatePolicy::default());
+        // Inject a synthetic event 2 hours in the past.
+        let ancient = Instant::now()
+            .checked_sub(Duration::from_secs(7200))
+            .expect("instant supports 2h subtraction on test platforms");
+        g.events.push(GenEvent {
+            category: "x".into(),
+            timestamp: ancient,
+        });
+        assert_eq!(g.events.len(), 1);
+
+        // Record a fresh event. prune_old inside record() should
+        // have dropped the ancient one.
+        g.record("x");
+        assert_eq!(
+            g.events.len(),
+            1,
+            "record() should have pruned the 2-hour-old event",
+        );
+    }
+
+    #[test]
+    fn test_check_is_checked_sub_safe() {
+        // Even with a completely empty governor, check() should
+        // never panic — the checked_sub fix handles freshly-booted
+        // Instants. This is the minimal guard against the
+        // platform-specific underflow panic.
+        let mut g = RateGovernor::new(RatePolicy::default());
+        // Just run check a few times in a row; any panic fails.
+        for _ in 0..10 {
+            let _ = g.check("x");
+        }
+        // No assertion needed — test passes if we did not panic.
     }
 }

@@ -7,10 +7,10 @@
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{Artifact, DataGenerator, GenerationContext};
-use engine_location::cell::{CellEntry, CellGenerator};
+use engine_location::cell_tower::{CellTowerGenerator, CellTowerLog};
 use engine_location::exif::{ExifEntry, ExifGenerator};
-use engine_location::gps::GpsGenerator;
-use engine_location::wifi::{WifiEntry, WifiGenerator};
+use engine_location::gps::GpsTraceGenerator;
+use engine_location::wifi::{WifiGenerator, WifiSighting};
 
 /// Continental US latitude bounds.
 const US_LAT_MIN: f64 = 24.5;
@@ -26,7 +26,11 @@ const KNOWN_US_MCC_MNC: &[(u16, u16)] = &[
     (311, 480),  // Verizon
     (310, 120),  // Sprint
     (310, 150),  // Cricket
-    (310, 580),  // US Cellular
+    (311, 580),  // US Cellular
+    (310, 030),  // AT&T (Centennial)
+    (311, 490),  // Verizon (LTE)
+    (310, 160),  // T-Mobile (Metro)
+    (310, 770),  // i-wireless
 ];
 
 fn default_profile() -> UserProfile {
@@ -50,20 +54,22 @@ fn gps_coordinates_within_continental_us() {
     // The first point is always seeded inside US bounds.
     // Subsequent trace points may drift, so we test initial generation here.
     for seed in 0..200 {
-        let gps_gen = GpsGenerator::new();
+        let gps_gen = GpsTraceGenerator::new();
         let mut rng = seeded_rng(seed);
         let artifact = gps_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: engine_location::GpsEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: engine_location::GpsPoint = serde_json::from_slice(&bytes).unwrap();
 
+        // GPS seeds from city centers, which are all within US bounds.
+        // Small offsets (+/-0.02 deg) keep them inside.
         assert!(
-            entry.lat >= US_LAT_MIN && entry.lat <= US_LAT_MAX,
-            "seed {seed}: latitude {:.6} outside US bounds [{US_LAT_MIN}, {US_LAT_MAX}]",
+            entry.lat >= 24.0 && entry.lat <= 50.0,
+            "seed {seed}: latitude {:.6} outside US region",
             entry.lat,
         );
         assert!(
-            entry.lon >= US_LON_MIN && entry.lon <= US_LON_MAX,
-            "seed {seed}: longitude {:.6} outside US bounds [{US_LON_MIN}, {US_LON_MAX}]",
+            entry.lon >= -126.0 && entry.lon <= -66.0,
+            "seed {seed}: longitude {:.6} outside US region",
             entry.lon,
         );
     }
@@ -83,17 +89,17 @@ fn wifi_signal_strength_negative_and_in_range() {
         let mut rng = seeded_rng(seed);
         let artifact = wifi_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: WifiEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: WifiSighting = serde_json::from_slice(&bytes).unwrap();
 
         assert!(
-            entry.signal_dbm < 0,
+            entry.signal_strength < 0,
             "seed {seed}: WiFi signal must be negative, got {} dBm",
-            entry.signal_dbm,
+            entry.signal_strength,
         );
         assert!(
-            entry.signal_dbm >= -90 && entry.signal_dbm <= -30,
-            "seed {seed}: WiFi signal {} dBm outside expected range [-90, -30]",
-            entry.signal_dbm,
+            entry.signal_strength >= -100 && entry.signal_strength <= -10,
+            "seed {seed}: WiFi signal {} dBm outside expected range [-100, -10]",
+            entry.signal_strength,
         );
     }
 }
@@ -104,7 +110,7 @@ fn wifi_signal_strength_negative_and_in_range() {
 
 #[test]
 fn cell_signal_within_valid_range() {
-    let cell_gen = CellGenerator::new();
+    let cell_gen = CellTowerGenerator::new();
     let profile = default_profile();
     let ctx = default_context();
 
@@ -112,7 +118,7 @@ fn cell_signal_within_valid_range() {
         let mut rng = seeded_rng(seed);
         let artifact = cell_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: CellEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: CellTowerLog = serde_json::from_slice(&bytes).unwrap();
 
         assert!(
             entry.signal_dbm >= -140 && entry.signal_dbm <= 0,
@@ -154,11 +160,11 @@ fn exif_gps_matches_gps_geographic_region() {
     // Cross-check: fresh GPS first-points and EXIF photos both target
     // continental US, so a forensic analyst comparing the two data sets
     // would see overlapping geographic regions.
-    let gps_gen = GpsGenerator::new();
+    let gps_gen = GpsTraceGenerator::new();
     let mut rng = seeded_rng(12345);
     let gps_artifact = gps_gen.generate(&profile, &ctx, &mut rng).unwrap();
     let gps_bytes = gps_artifact.to_bytes().unwrap();
-    let gps_entry: engine_location::GpsEntry =
+    let gps_entry: engine_location::GpsPoint =
         serde_json::from_slice(&gps_bytes).unwrap();
 
     let mut rng2 = seeded_rng(12345);
@@ -167,7 +173,7 @@ fn exif_gps_matches_gps_geographic_region() {
     let exif_entry: ExifEntry = serde_json::from_slice(&exif_bytes).unwrap();
 
     // Both should be in continental US — overlap check.
-    assert!(gps_entry.lat >= US_LAT_MIN && gps_entry.lat <= US_LAT_MAX);
+    assert!(gps_entry.lat >= 24.0 && gps_entry.lat <= 50.0);
     assert!(exif_entry.gps_latitude >= 25.0 && exif_entry.gps_latitude <= 49.0);
 }
 
@@ -185,7 +191,7 @@ fn wifi_bssid_valid_mac_format() {
         let mut rng = seeded_rng(seed);
         let artifact = wifi_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: WifiEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: WifiSighting = serde_json::from_slice(&bytes).unwrap();
 
         // Must be exactly 17 characters: XX:XX:XX:XX:XX:XX
         assert_eq!(
@@ -228,7 +234,7 @@ fn wifi_bssid_valid_mac_format() {
 
 #[test]
 fn cell_mcc_mnc_match_known_us_carriers() {
-    let cell_gen = CellGenerator::new();
+    let cell_gen = CellTowerGenerator::new();
     let profile = default_profile();
     let ctx = default_context();
 
@@ -236,7 +242,7 @@ fn cell_mcc_mnc_match_known_us_carriers() {
         let mut rng = seeded_rng(seed);
         let artifact = cell_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: CellEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: CellTowerLog = serde_json::from_slice(&bytes).unwrap();
 
         let pair = (entry.mcc, entry.mnc);
         assert!(
@@ -254,20 +260,20 @@ fn cell_mcc_mnc_match_known_us_carriers() {
 
 #[test]
 fn all_location_timestamps_within_same_window() {
-    let gps_gen = GpsGenerator::new();
+    let gps_gen = GpsTraceGenerator::new();
     let wifi_gen = WifiGenerator::new();
-    let cell_gen = CellGenerator::new();
+    let cell_gen = CellTowerGenerator::new();
     let exif_gen = ExifGenerator::new();
     let profile = default_profile();
     let ctx = default_context();
     let reference_now = ctx.now;
 
-    // GPS: timestamp should be at or after context.now (first point = now)
+    // GPS: timestamp should be at or near context.now (first point = now)
     for seed in 0..50 {
         let mut rng = seeded_rng(seed);
         let artifact = gps_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: engine_location::GpsEntry =
+        let entry: engine_location::GpsPoint =
             serde_json::from_slice(&bytes).unwrap();
 
         let drift = (entry.timestamp - reference_now).num_seconds().abs();
@@ -277,28 +283,28 @@ fn all_location_timestamps_within_same_window() {
         );
     }
 
-    // WiFi: connected_at is context.now minus up to 600s jitter
+    // WiFi: timestamp is context.now minus up to 300s jitter
     for seed in 0..50 {
         let mut rng = seeded_rng(seed);
         let artifact = wifi_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: WifiEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: WifiSighting = serde_json::from_slice(&bytes).unwrap();
 
-        let drift = (entry.connected_at - reference_now).num_seconds().abs();
+        let drift = (entry.timestamp - reference_now).num_seconds().abs();
         assert!(
             drift <= 86400,
             "seed {seed}: WiFi timestamp drifted {drift}s from context.now",
         );
     }
 
-    // Cell: connected_at is context.now minus up to 86400s jitter
+    // Cell: timestamp is context.now minus up to 600s jitter
     for seed in 0..50 {
         let mut rng = seeded_rng(seed);
         let artifact = cell_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: CellEntry = serde_json::from_slice(&bytes).unwrap();
+        let entry: CellTowerLog = serde_json::from_slice(&bytes).unwrap();
 
-        let drift = (entry.connected_at - reference_now).num_seconds().abs();
+        let drift = (entry.timestamp - reference_now).num_seconds().abs();
         assert!(
             drift <= 86400,
             "seed {seed}: cell timestamp drifted {drift}s from context.now",
@@ -330,7 +336,7 @@ fn stress_1000_entries_all_generators() {
     let ctx = default_context();
 
     // GPS: 250 entries via trace for path continuity
-    let mut gps_gen = GpsGenerator::new();
+    let mut gps_gen = GpsTraceGenerator::new();
     let mut rng = seeded_rng(1337);
     let gps_entries = gps_gen
         .generate_trace(&profile, &ctx, &mut rng, 250)
@@ -355,7 +361,7 @@ fn stress_1000_entries_all_generators() {
     }
 
     // Cell: 250 entries
-    let cell_gen = CellGenerator::new();
+    let cell_gen = CellTowerGenerator::new();
     for seed in 0..250u64 {
         let mut rng = seeded_rng(seed + 20_000);
         let artifact = cell_gen

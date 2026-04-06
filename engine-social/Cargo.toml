@@ -3,7 +3,7 @@ name = "engine-social"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "PlausiDen social artifact generation (scaffold)"
+description = "PlausiDen social artifact generation — activity, messaging, notifications"
 
 [dependencies]
 engine-core = { workspace = true }

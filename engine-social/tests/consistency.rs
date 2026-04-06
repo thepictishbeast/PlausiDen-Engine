@@ -1,16 +1,28 @@
 //! Cross-platform consistency tests for social media generators.
 //!
-//! Validates that the activity, engagement, and content generators produce
-//! plausible, internally consistent artifacts when run at scale.
+//! Validates that the activity, engagement, content, messaging, and notification
+//! generators produce plausible, internally consistent artifacts when run at scale.
 
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use engine_social::activity::{SocialAction, SocialEntry, SocialGenerator};
+use engine_social::activity::{ActionType, ActivityGenerator, SocialActivity};
 use engine_social::content::{ContentGenerator, ContentPost, ContentType};
 use engine_social::engagement::{EngagementGenerator, EngagementSnapshot};
+use engine_social::messaging::{MessageDirection, MessageEntry, MessagingGenerator};
+use engine_social::notification::{NotificationGenerator, NotificationType, SocialNotification};
 
-const KNOWN_PLATFORMS: &[&str] = &[
+/// Generic platform names used by the activity/notification generators.
+const ACTIVITY_PLATFORMS: &[&str] = &[
+    "microblog",
+    "photoshare",
+    "videotube",
+    "linkboard",
+    "chatroom",
+];
+
+/// Platform names used by legacy content/engagement generators.
+const CONTENT_PLATFORMS: &[&str] = &[
     "Twitter/X",
     "Instagram",
     "Facebook",
@@ -21,13 +33,22 @@ const KNOWN_PLATFORMS: &[&str] = &[
     "Threads",
 ];
 
-/// Helper: generate a `SocialEntry` from a seed.
-fn social_entry(seed: u64) -> SocialEntry {
-    let social_gen = SocialGenerator::new();
+/// Messaging platform names.
+const MESSAGING_PLATFORMS: &[&str] = &[
+    "quickchat",
+    "buzzmsg",
+    "pingsend",
+    "directline",
+    "grouplink",
+];
+
+/// Helper: generate a `SocialActivity` from a seed.
+fn social_activity(seed: u64) -> SocialActivity {
+    let activity_gen = ActivityGenerator::new();
     let profile = UserProfile::default();
     let ctx = GenerationContext::new();
     let mut rng = seeded_rng(seed);
-    let artifact = social_gen.generate(&profile, &ctx, &mut rng).unwrap();
+    let artifact = activity_gen.generate(&profile, &ctx, &mut rng).unwrap();
     let bytes = artifact.to_bytes().unwrap();
     serde_json::from_slice(&bytes).unwrap()
 }
@@ -54,45 +75,62 @@ fn content_post(seed: u64) -> ContentPost {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+/// Helper: generate a `MessageEntry` from a seed.
+fn message_entry(seed: u64) -> MessageEntry {
+    let msg_gen = MessagingGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+    let mut rng = seeded_rng(seed);
+    let artifact = msg_gen.generate(&profile, &ctx, &mut rng).unwrap();
+    let bytes = artifact.to_bytes().unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+/// Helper: generate a `SocialNotification` from a seed.
+fn notification_entry(seed: u64) -> SocialNotification {
+    let notif_gen = NotificationGenerator::new();
+    let profile = UserProfile::default();
+    let ctx = GenerationContext::new();
+    let mut rng = seeded_rng(seed);
+    let artifact = notif_gen.generate(&profile, &ctx, &mut rng).unwrap();
+    let bytes = artifact.to_bytes().unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
 // ---------------------------------------------------------------------------
 // 1. Activity actions follow realistic distribution
-//    (scroll dominant, likes common, posts rare)
 // ---------------------------------------------------------------------------
 #[test]
 fn activity_actions_follow_realistic_distribution() {
     let n = 2000u32;
-    let mut scrolls = 0u32;
     let mut likes = 0u32;
     let mut posts = 0u32;
+    let mut comments = 0u32;
 
     for seed in 0..n {
-        let entry = social_entry(u64::from(seed));
-        match entry.action {
-            SocialAction::ScrollFeed => scrolls += 1,
-            SocialAction::Like => likes += 1,
-            SocialAction::Post => posts += 1,
+        let entry = social_activity(u64::from(seed));
+        match entry.action_type {
+            ActionType::Like => likes += 1,
+            ActionType::Post => posts += 1,
+            ActionType::Comment => comments += 1,
             _ => {}
         }
     }
 
-    // ScrollFeed should be ~40% (dominant).
+    // Likes should be dominant (~35%).
     assert!(
-        scrolls > n / 4,
-        "scrolls should be dominant (>25%), got {scrolls}/{n}"
+        likes > n / 4,
+        "likes should be dominant (>25%), got {likes}/{n}"
     );
-    // Likes should be common (~25%).
+    // Comments should be common (~20%).
     assert!(
-        likes > n / 8,
-        "likes should be common (>12.5%), got {likes}/{n}"
+        comments > n / 8,
+        "comments should be common (>12.5%), got {comments}/{n}"
     );
-    // Posts should be rare (~10%), significantly less than scrolls.
+    // Posts should be rarer than likes.
     assert!(
-        posts < scrolls,
-        "posts ({posts}) should be rarer than scrolls ({scrolls})"
-    );
-    assert!(
-        posts < n / 4,
-        "posts should be rare (<25%), got {posts}/{n}"
+        posts < likes,
+        "posts ({posts}) should be rarer than likes ({likes})"
     );
 }
 
@@ -161,7 +199,6 @@ fn photo_captions_have_at_least_one_hashtag() {
                 !post.hashtags.is_empty(),
                 "photo caption at seed {seed} has no hashtags"
             );
-            // Every hashtag should start with '#'.
             for tag in &post.hashtags {
                 assert!(
                     tag.starts_with('#'),
@@ -170,7 +207,6 @@ fn photo_captions_have_at_least_one_hashtag() {
             }
         }
     }
-    // Sanity: we should have seen a good number of photo captions.
     assert!(
         photo_count > 400,
         "expected >400 photo captions in 2000 samples, got {photo_count}"
@@ -189,11 +225,8 @@ fn stories_have_positive_view_counts() {
             story_count += 1;
             let views = post
                 .view_count
-                .expect(&format!("story at seed {seed} has no view_count"));
-            assert!(
-                views > 0,
-                "story at seed {seed} has zero view count"
-            );
+                .unwrap_or_else(|| panic!("story at seed {seed} has no view_count"));
+            assert!(views > 0, "story at seed {seed} has zero view count");
         }
     }
     assert!(
@@ -215,7 +248,7 @@ fn share_posts_have_original_author_metadata() {
             let sm = post
                 .share_meta
                 .as_ref()
-                .expect(&format!("share at seed {seed} missing share_meta"));
+                .unwrap_or_else(|| panic!("share at seed {seed} missing share_meta"));
             assert!(
                 !sm.original_author.is_empty(),
                 "share at seed {seed} has empty original_author"
@@ -225,7 +258,7 @@ fn share_posts_have_original_author_metadata() {
                 "share at seed {seed} has empty original_platform"
             );
             assert!(
-                KNOWN_PLATFORMS.contains(&sm.original_platform.as_str()),
+                CONTENT_PLATFORMS.contains(&sm.original_platform.as_str()),
                 "share at seed {seed} has unknown original_platform {:?}",
                 sm.original_platform,
             );
@@ -238,50 +271,66 @@ fn share_posts_have_original_author_metadata() {
 }
 
 // ---------------------------------------------------------------------------
-// 8. All social entries have valid platform names from the known list
+// 8. All generators produce valid platform names from their known lists
 // ---------------------------------------------------------------------------
 #[test]
 fn all_entries_have_valid_platform_names() {
     for seed in 0..500u64 {
-        let activity = social_entry(seed);
+        let activity = social_activity(seed);
         assert!(
-            KNOWN_PLATFORMS.contains(&activity.platform.as_str()),
+            ACTIVITY_PLATFORMS.contains(&activity.platform.as_str()),
             "activity at seed {seed}: unknown platform {:?}",
             activity.platform,
         );
 
         let snap = engagement_snap(seed);
         assert!(
-            KNOWN_PLATFORMS.contains(&snap.platform.as_str()),
+            CONTENT_PLATFORMS.contains(&snap.platform.as_str()),
             "engagement at seed {seed}: unknown platform {:?}",
             snap.platform,
         );
 
         let post = content_post(seed);
         assert!(
-            KNOWN_PLATFORMS.contains(&post.platform.as_str()),
+            CONTENT_PLATFORMS.contains(&post.platform.as_str()),
             "content at seed {seed}: unknown platform {:?}",
             post.platform,
+        );
+
+        let msg = message_entry(seed);
+        assert!(
+            MESSAGING_PLATFORMS.contains(&msg.platform.as_str()),
+            "messaging at seed {seed}: unknown platform {:?}",
+            msg.platform,
+        );
+
+        let notif = notification_entry(seed);
+        assert!(
+            ACTIVITY_PLATFORMS.contains(&notif.platform.as_str()),
+            "notification at seed {seed}: unknown platform {:?}",
+            notif.platform,
         );
     }
 }
 
 // ---------------------------------------------------------------------------
-// 9. 1000-entry stress: all valid across all 3 generators
+// 9. 1000-entry stress: all 5 generators valid
 // ---------------------------------------------------------------------------
 #[test]
 fn stress_1000_entries_all_generators_valid() {
-    let social_gen = SocialGenerator::new();
+    let activity_gen = ActivityGenerator::new();
     let eng_gen = EngagementGenerator::new();
     let content_gen = ContentGenerator::new();
+    let msg_gen = MessagingGenerator::new();
+    let notif_gen = NotificationGenerator::new();
     let profile = UserProfile::default();
     let ctx = GenerationContext::new();
 
     for seed in 0..1000u64 {
         let mut rng = seeded_rng(seed);
-        let a = social_gen.generate(&profile, &ctx, &mut rng).unwrap();
+        let a = activity_gen.generate(&profile, &ctx, &mut rng).unwrap();
         a.validate_plausibility()
-            .unwrap_or_else(|e| panic!("social seed {seed}: {e}"));
+            .unwrap_or_else(|e| panic!("activity seed {seed}: {e}"));
 
         let mut rng = seeded_rng(seed + 10_000);
         let b = eng_gen.generate(&profile, &ctx, &mut rng).unwrap();
@@ -292,6 +341,17 @@ fn stress_1000_entries_all_generators_valid() {
         let c = content_gen.generate(&profile, &ctx, &mut rng).unwrap();
         c.validate_plausibility()
             .unwrap_or_else(|e| panic!("content seed {seed}: {e}"));
+
+        let mut rng = seeded_rng(seed + 30_000);
+        let d = msg_gen.generate(&profile, &ctx, &mut rng).unwrap();
+        d.validate_plausibility()
+            .unwrap_or_else(|e| panic!("messaging seed {seed}: {e}"));
+
+        let mut rng = seeded_rng(seed + 40_000);
+        let e_artifact = notif_gen.generate(&profile, &ctx, &mut rng).unwrap();
+        e_artifact
+            .validate_plausibility()
+            .unwrap_or_else(|e| panic!("notification seed {seed}: {e}"));
     }
 }
 
@@ -300,13 +360,6 @@ fn stress_1000_entries_all_generators_valid() {
 // ---------------------------------------------------------------------------
 #[test]
 fn cross_generator_engagement_proportional_to_content_volume() {
-    // Cross-generator consistency: engagement metrics should be proportional
-    // to the content volume a user produces.  We split a seed range into a
-    // "low-activity" half (fewer content posts) and a "high-activity" half
-    // (more content posts), then verify engagement rates remain bounded and
-    // that per-post interaction counts scale with follower counts, not with
-    // raw content volume.
-
     let n = 500u64;
 
     // --- Content volume ---
@@ -320,7 +373,6 @@ fn cross_generator_engagement_proportional_to_content_volume() {
         }
     }
 
-    // Sanity: we generated content, and text posts are the most common type.
     assert!(total_content_items == n);
     assert!(
         text_post_count > n / 4,
@@ -340,8 +392,6 @@ fn cross_generator_engagement_proportional_to_content_volume() {
         total_followers += snap.audience.followers;
         snapshot_count += 1;
 
-        // Per-snapshot: interactions must not exceed follower count.
-        // (Engagement rate is capped at 1.0 by the generator.)
         assert!(
             interactions <= snap.audience.followers,
             "seed {seed}: interactions ({interactions}) > followers ({})",
@@ -349,8 +399,6 @@ fn cross_generator_engagement_proportional_to_content_volume() {
         );
     }
 
-    // Average engagement rate across all snapshots should be in a realistic
-    // range (real-world averages are 1–5%).
     let avg_interactions = total_interactions as f64 / snapshot_count as f64;
     let avg_followers = total_followers as f64 / snapshot_count as f64;
     let overall_rate = avg_interactions / avg_followers;
@@ -365,21 +413,16 @@ fn cross_generator_engagement_proportional_to_content_volume() {
     );
 
     // --- Activity volume ---
-    // Generate activity entries and verify the action counts are non-trivial,
-    // confirming all three generators produce correlated output at the same
-    // seed range (i.e., the social ecosystem is internally consistent).
     let mut activity_count = 0u64;
     let mut post_actions = 0u64;
     for seed in 0..n {
-        let entry = social_entry(seed);
+        let entry = social_activity(seed);
         activity_count += 1;
-        if matches!(entry.action, SocialAction::Post) {
+        if matches!(entry.action_type, ActionType::Post) {
             post_actions += 1;
         }
     }
 
-    // Activity post actions should be in the same order of magnitude as
-    // content text posts (both represent "posting" behavior).
     assert!(
         post_actions > 0 && text_post_count > 0,
         "both generators should produce posts"
@@ -392,4 +435,35 @@ fn cross_generator_engagement_proportional_to_content_volume() {
     );
 
     assert_eq!(activity_count, n, "all activity seeds produced output");
+}
+
+// ---------------------------------------------------------------------------
+// 11. Messaging: sent messages are always read
+// ---------------------------------------------------------------------------
+#[test]
+fn messaging_sent_messages_always_read() {
+    for seed in 0..500u64 {
+        let msg = message_entry(seed);
+        if msg.direction == MessageDirection::Sent {
+            assert!(msg.read, "sent message at seed {seed} is unread");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 12. Notifications: all have non-empty from_user and content
+// ---------------------------------------------------------------------------
+#[test]
+fn notification_fields_non_empty() {
+    for seed in 0..500u64 {
+        let notif = notification_entry(seed);
+        assert!(
+            !notif.from_user.is_empty(),
+            "notification at seed {seed} has empty from_user"
+        );
+        assert!(
+            !notif.content.is_empty(),
+            "notification at seed {seed} has empty content"
+        );
+    }
 }

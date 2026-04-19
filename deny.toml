@@ -21,20 +21,17 @@
 # (libc 0.2, zeroize 1.8, subtle 2.6) confirmed against allowlist.
 
 [advisories]
+version = 2
 # Production-grade posture: known vulnerabilities fail CI; unmaintained /
 # unsound / yanked trigger review but don't block merges.
-vulnerability = "deny"
-unmaintained = "warn"
-unsound = "warn"
-yanked = "warn"
 # Optional: ignore specific advisory IDs when they don't apply (e.g.
 # RUSTSEC-YYYY-NNNN is a CVE in a dev-dep path that doesn't ship).
 # ignore = []
 
 [licenses]
+version = 2
 # "Unlicensed" here means "no license metadata in Cargo.toml." Reject
 # those — we can't audit what we can't read.
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -52,8 +49,6 @@ allow = [
 ]
 # Block copyleft (GPL/LGPL/AGPL) — our BSL-1.1 → Apache-2.0 change-date
 # pathway cannot accept downstream copyleft obligations.
-copyleft = "deny"
-
 # Optional per-crate license overrides for edge cases where a crate's
 # metadata is wrong but the upstream LICENSE file is clear. Empty today.
 # exceptions = []

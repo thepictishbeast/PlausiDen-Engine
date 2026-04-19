@@ -881,7 +881,7 @@ fn test_bookmark_history_url_overlap() {
 // before the first visit is forensically implausible.
 
 #[test]
-#[ignore] // TODO: requires correlated generator output (downloads independent of history timing)
+#[ignore = "tracked in task #40 — requires correlated generator output: downloads currently timed independently of history"]
 fn test_download_timestamps_within_browsing_window() {
     let profile = shared_profile();
     let ctx = shared_context();

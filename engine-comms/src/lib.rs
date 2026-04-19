@@ -8,6 +8,7 @@ pub mod calls;
 pub mod calendar;
 pub mod contacts;
 pub mod email_headers;
+pub mod notifications;
 pub mod sms;
 
 // Re-export primary generators for convenience.

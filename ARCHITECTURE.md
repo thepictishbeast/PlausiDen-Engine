@@ -108,6 +108,68 @@ The `Artifact` trait uses `to_bytes()` for serialization instead of requiring `s
 - **Distribution matching**: Inter-visit intervals, URL category distributions, cookie expiry distributions, and search query patterns will be calibrated against real-world datasets.
 - This is the difference between "looks plausible on manual inspection" and "is mathematically indistinguishable."
 
+## Security primitives (engine-core)
+
+Three modules under `engine-core` handle key lifecycle and dead-hand
+scenarios. They are shared across every tier — Desktop, Android, USB,
+and the Swarm — so correctness matters disproportionately.
+
+### `engine-core::erasure`
+
+Cryptographic key erasure with pinned-RAM storage.
+
+- `ErasableKey` holds 32 bytes of key material in a page `mlock`'d
+  on Unix (`MADV_DONTDUMP` on Linux, best-effort), zeroized on
+  `Drop`, `munlock`'d on `Drop`. Windows `VirtualLock` support is
+  pending.
+- `KeyStorage` variants: `Memory` (implemented), `MemoryAndDisk`,
+  `Hardware` (TPM / Secure Enclave / FIDO2), `ShamirShares` (via
+  `PlausiDen-Shard`). Only `Memory` is implemented today.
+- `ErasureReceipt` with Ed25519 signature (signature currently a
+  64-byte zero placeholder until the engine signing keys are
+  provisioned).
+- `Debug` impl redacts material as `[REDACTED 32B]`.
+
+The `OPSEC.md` in this repo covers the swap-disable mandate,
+`RLIMIT_MEMLOCK` tuning, and the Windows gap.
+
+### `engine-core::duress`
+
+Constant-time passphrase verification.
+
+- `DuressConfig` holds a real-passphrase hash plus an ordered list
+  of `DuressEntry` (each a hash + `DuressResponse`).
+- `verify(cfg, candidate_hash) -> VerifyOutcome` uses
+  `subtle::ConstantTimeEq` against every entry (all-or-nothing
+  iteration; no short-circuit). Returns `Real`,
+  `Duress(response)`, or `NoMatch` — the caller cannot tell from
+  timing which entry matched.
+- `DuressResponse` variants: `MountDecoy`, `SilentErase`,
+  `SilentAlert`, `SanitizedMount`, `Composite`.
+- Caller responsibility: KDF the typed passphrase (Argon2id
+  recommended) before passing. See `OPSEC.md` §5.1.
+
+### `engine-core::deadman`
+
+Dead-man switch decision layer (pure — timing is the caller's).
+
+- `DeadmanConfig` with `arm`, `disarm`, `check_in`, `evaluate`
+  (pure function taking current Unix time).
+- `TriggerAction` variants: `EraseKey`, `AlertContacts`,
+  `SwarmDestroy`, `WipePaths`, `CustomHook`, `Composite`.
+- `DeadmanStatus` variants: `Disarmed`, `Fresh`, `Warning`, `Fire`.
+- Intentionally no background timer in this module — hosts drive
+  the cadence (a Tokio wrapper lands with task #24 follow-on).
+- `simple_key_erase()` convenience for the most common config.
+
+### Interaction
+
+The three primitives compose: a `DeadmanConfig` whose
+`TriggerAction` is `EraseKey { key_ids }` lets an `ErasableKey`
+auto-wipe if the user goes silent. A `DuressConfig` whose
+`DuressResponse` is `SilentErase { key_ids }` wipes the same keys
+if a duress passphrase fires. The caller wires these.
+
 ## Future Directions
 
 ### Adversarial Testing (Priority)
@@ -121,3 +183,53 @@ The Localized Forensic Intelligence (neurosymbolic AI) will drive the engine, ma
 
 ### WASM Optimization
 Minimize binary size for the browser extension. Tree-shake unused generators. Profile and optimize hot paths.
+
+---
+
+## Out of Scope
+
+Per v1.2 §G.3. The Engine is a pure data-generation library — it
+produces `Box<dyn Artifact>` items plus the security primitives
+(`erasure`, `duress`, `deadman`). It does NOT:
+
+- **Write to the host filesystem or browser stores.** That is
+  `plausiden-inject`'s job. Engine crates return artifacts;
+  consumers decide where (and whether) to materialize them. A
+  plaintext-file adapter, a `places.sqlite` adapter, or a
+  "discard" consumer are all valid wirings.
+- **Open network sockets, resolve DNS, or otherwise touch the
+  network.** `engine-network` generates network-shaped
+  *artifacts* (DNS query records, HTTP log lines) but does not
+  emit real packets. Anything that would produce observable
+  network traffic belongs in a separate `plausiden-net-emit`
+  layer if and when it is ever scoped.
+- **Manage user credentials, vaults, or OS keyrings.**
+  `engine-core::erasure::ErasableKey` is a memory-lifetime
+  primitive only — it mlocks and zeroizes a 32-byte buffer. Any
+  on-disk key material, including the Ed25519 signing key used
+  by `ErasureReceipt::sign`, must be provisioned by the caller
+  (Desktop via Tauri secure storage; Android via Keystore).
+- **Schedule work over wall-clock time.** Engine's
+  `engine-core::schedule` computes *delays* from a circadian +
+  burst + jitter model; hosts (Browser-Ext's `alarms`, Desktop's
+  Tokio runtime) turn those delays into timer firings.
+  `engine-core::deadman::evaluate` is likewise a pure decision
+  function — the caller holds the clock.
+- **Enforce OS-level sandboxing.** seccomp, landlock, pledge,
+  capability-dropping, AppArmor, SELinux profiles — all belong
+  in the host. Engine is a library and inherits whatever
+  confinement the host process is running under. See `OPSEC.md`
+  for the per-host expected sandbox posture.
+- **Provide a binary / CLI / daemon.** Engine ships as workspace
+  crates only. Consumers (`plausiden-browser-ext` → WASM,
+  `plausiden-desktop` → Tauri, `plausiden-android` → JNI) wrap
+  the library.
+- **Implement anti-forensic detection or evasion of running
+  security tools.** Engine is an *artifact* generator; whether
+  those artifacts land in a filesystem a forensic tool will scan
+  is a consumer concern (handled by `plausiden-inject` and by
+  Desktop's `stealth.rs` detection layer).
+
+Scope creep beyond this boundary lands downstream; keeping the
+library pure is what makes the AVP-2 Tier 3 threat model
+tractable.

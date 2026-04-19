@@ -35,6 +35,19 @@ fake = { version = "5", features = ["derive"] }
 proptest = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio = { version = "1", features = ["full"] }
+# Secret-material hygiene. Used by engine-core::erasure and any module
+# holding key material; ZeroizeOnDrop + constant-time zero on drop.
+zeroize = { version = "1", features = ["derive"] }
+# Constant-time comparisons for secret equality tests (passphrases,
+# MACs, etc.). Use `subtle::ConstantTimeEq` instead of `==`.
+subtle = "2"
+# Raw syscalls for mlock / munlock / madvise on Unix. Windows path
+# uses windows-sys when engine-core gets Windows support.
+libc = "0.2"
+# Ed25519 signing for ErasureReceipt (engine-core::erasure, task #47).
+# `std` default feature off keeps the door open for no_std consumers;
+# `rand_core` feature gives us SigningKey::generate(rng).
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "rand_core"] }
 
 # Internal crates
 engine-core = { path = "engine-core" }

@@ -265,6 +265,12 @@ pub const KNOWN_JA3_SAFARI_17: &str = "d311137c12fe9c937d49ff590818b827";
 pub const KNOWN_JA3_CURL_WGET: &str = "4c1b561655a13323b13810037d032c81";
 
 /// Common SNI targets -- domains that appear in TLS logs.
+///
+/// CROSSFIX from PlausiDen-Browser-Ext/wasm-engine leak audit (2026-04-17,
+/// task #43): this slice must stay non-empty. The compile-time assertion
+/// below catches an accidental emptying before it reaches a runtime where
+/// a now-impossible fallback would have shipped `"example.com"` — a
+/// forensic fingerprint identical in class to the `.example` TLD leak.
 const SNI_DOMAINS: &[&str] = &[
     "www.google.com",
     "www.youtube.com",
@@ -293,6 +299,12 @@ const SNI_DOMAINS: &[&str] = &[
     "accounts.google.com",
     "login.microsoftonline.com",
 ];
+
+// Compile-time guarantee that SNI_DOMAINS has at least one entry. If anyone
+// empties the slice above, cargo refuses to compile the crate — so the
+// .expect() at the use site cannot fire at runtime. Anonymous const name
+// (`_`) so it isn't flagged as dead_code.
+const _: () = assert!(!SNI_DOMAINS.is_empty());
 
 // ---------------------------------------------------------------------------
 // JA3 / JA4 computation
@@ -511,15 +523,16 @@ impl DataGenerator for TlsGenerator {
         let browser = Self::pick_profile(rng);
 
         // Pick an SNI domain.
-        // SAFETY/FALLBACK: SNI_DOMAINS is a non-empty const slice, so
-        // .choose() returning None would only mean a future refactor
-        // has emptied it. We fall back to a literal placeholder rather
-        // than unwrap so a doctrine-violating empty slice cannot
-        // panic the generator at runtime.
+        // SAFETY: SNI_DOMAINS is a const non-empty slice — the compile-time
+        // assertion above guarantees `choose` returns Some. Previously this
+        // code used `.unwrap_or("example.com")` as a runtime fallback, but
+        // that shipped a synthetic-TLD fingerprint on the extremely unlikely
+        // code path. Compile-time enforcement + .expect() replaces it:
+        // if SNI_DOMAINS is ever emptied, the compile fails, not the handshake.
         let server_name = SNI_DOMAINS
             .choose(rng)
             .copied()
-            .unwrap_or("example.com")
+            .expect("SNI_DOMAINS is a non-empty const (enforced by `const _: () = assert!(...)`)")
             .to_string();
 
         // Compute fingerprints.

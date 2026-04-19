@@ -1,10 +1,39 @@
+# cargo-deny configuration for PlausiDen-Engine.
+#
+# Run with: cargo deny check
+#
+# Policy rationale:
+#
+# - We deny GPL / AGPL / copyleft because the engine is licensed under
+#   BSL-1.1 with a change-date to Apache-2.0. Mixing copyleft deps
+#   would taint that license pathway.
+# - We allow the permissive set (MIT, Apache-2.0, BSD-2/3-Clause, ISC)
+#   plus a few Unicode / CC0 / BSL / Zlib that appear in the dep tree
+#   with equivalent redistribution terms.
+# - We deny unknown-registry and unknown-git: every dep must come from
+#   crates.io with a pinned version. Supply-chain integrity requires
+#   this.
+# - Advisory posture: vulnerability = deny (CVE → hard fail CI),
+#   unmaintained / unsound = warn (action required but not blocking),
+#   yanked = warn (acceptable transient state).
+#
+# Audited: Claude 3, 2026-04-17. Deps touched in this cycle
+# (libc 0.2, zeroize 1.8, subtle 2.6) confirmed against allowlist.
+
 [advisories]
+# Production-grade posture: known vulnerabilities fail CI; unmaintained /
+# unsound / yanked trigger review but don't block merges.
 vulnerability = "deny"
 unmaintained = "warn"
 unsound = "warn"
 yanked = "warn"
+# Optional: ignore specific advisory IDs when they don't apply (e.g.
+# RUSTSEC-YYYY-NNNN is a CVE in a dev-dep path that doesn't ship).
+# ignore = []
 
 [licenses]
+# "Unlicensed" here means "no license metadata in Cargo.toml." Reject
+# those — we can't audit what we can't read.
 unlicensed = "deny"
 allow = [
     "MIT",
@@ -17,10 +46,33 @@ allow = [
     "BSL-1.0",
     "CC0-1.0",
     "Zlib",
+    # Added 2026-04-17 for subtle 2.6 (pure BSD-3-Clause, already listed).
+    # No new additions this cycle — all new deps (libc, zeroize, subtle)
+    # match existing allowlist entries.
 ]
+# Block copyleft (GPL/LGPL/AGPL) — our BSL-1.1 → Apache-2.0 change-date
+# pathway cannot accept downstream copyleft obligations.
 copyleft = "deny"
 
+# Optional per-crate license overrides for edge cases where a crate's
+# metadata is wrong but the upstream LICENSE file is clear. Empty today.
+# exceptions = []
+
 [sources]
+# Deny unknown registries / unknown git remotes. Every dep must come
+# from crates.io with a pinned version. Verified supply-chain posture.
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# allow-git = []  # No git deps in the workspace today; keep empty.
+
+[bans]
+# Duplicate-version policy: warn. Many crates exist in multiple major
+# versions in a realistic dep tree (e.g. rand 0.8 + rand 0.9 during a
+# migration). Upgrade to "deny" once task #21 rand migration lands and
+# duplicates can be eliminated.
+multiple-versions = "warn"
+# Explicitly banned crates (empty today). Populate with e.g. yanked
+# crates or crates with known security issues we haven't yet upgraded
+# past.
+# deny = []

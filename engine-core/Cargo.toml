@@ -14,8 +14,22 @@ rand_chacha = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+# Secret-material hygiene for engine-core::erasure (task #22).
+zeroize = { workspace = true }
+# Constant-time compare for engine-core::duress (task #23).
+subtle = { workspace = true }
+# Ed25519 signing for engine-core::erasure::ErasureReceipt (task #47).
+ed25519-dalek = { workspace = true }
+# Raw syscalls for mlock/munlock/madvise in engine-core::erasure (Unix).
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 criterion = { workspace = true }
 tokio = { workspace = true }
+
+[[bench]]
+name = "duress_verify"
+harness = false
+

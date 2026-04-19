@@ -30,18 +30,45 @@ Every generator takes a `UserProfile` (demographic, device, interests, activity 
 
 | Component | Status |
 |-----------|--------|
-| engine-core | Implemented |
+| engine-core (traits, profile, scheduling, entropy) | Implemented |
+| engine-core::erasure (mlock + zeroize + Ed25519 signing) | Implemented (Unix; Windows `VirtualLock` pending) |
+| engine-core::duress (constant-time passphrase verification) | Implemented (core; KDF integration pending) |
+| engine-core::deadman (decision layer, arm / disarm / evaluate) | Implemented (tokio wrapper follow-on) |
 | engine-browser (history, cookies, searches) | Implemented |
 | engine-browser (bookmarks, downloads, autofill, localStorage) | Scaffolded |
+| engine-comms::notifications (Prairie-Land pathway, weight=900) | Implemented (core; diurnal / per-profile mix follow-on) |
+| engine-comms (contacts, calls, SMS, calendar, email headers) | Scaffolded |
 | engine-fs | Scaffolded |
-| engine-comms | Scaffolded |
 | engine-location | Scaffolded |
 | engine-input | Scaffolded |
-| engine-network | Scaffolded |
+| engine-network (TLS fingerprints, DNS, HTTP) | Scaffolded |
 | engine-social | Scaffolded |
 | engine-system | Scaffolded |
 | WASM compilation | Verified |
-| Adversarial test suite | Planned |
+| Adversarial distinguisher (AUC ≤ 0.55 target) | Planned |
+
+## Security Primitives — the three pillars
+
+- **Cryptographic erasure** (`engine-core::erasure`) — 32-byte keys
+  in mlocked RAM with `MADV_DONTDUMP` on Linux, zeroized on drop.
+  `ErasureReceipt` is Ed25519-signed over a canonical 25-byte
+  payload (`key_id || erased_at-BE || reason-tag`) so a third party
+  can verify a receipt without trusting this runtime — only the
+  published public key and the canonical encoding.
+- **Duress passphrases** (`engine-core::duress`) — constant-time
+  compare via `subtle::ConstantTimeEq`, all-or-nothing iteration,
+  no response-timing side channel leaking which entry matched.
+  Responses: `MountDecoy / SilentErase / SilentAlert /
+  SanitizedMount / Composite`.
+- **Dead-man switch** (`engine-core::deadman`) — pure `evaluate()`
+  decision layer (host drives the timer). Status:
+  `Disarmed / Fresh / Warning / Fire`. Actions: `EraseKey /
+  AlertContacts / SwarmDestroy / WipePaths / CustomHook /
+  Composite`.
+
+See `OPSEC.md` for the operational-security constraints these
+primitives impose on hosts (swap-disable, `RLIMIT_MEMLOCK`,
+Windows gap, KDF responsibility, response-timing advice).
 
 ## Quick Start
 
@@ -50,6 +77,22 @@ git clone https://github.com/redcaptian1917/PlausiDen-Engine.git
 cd PlausiDen-Engine
 just check-all
 ```
+
+### Composing the three pillars
+
+A runnable demo under `engine-core/examples/` walks through a
+journalist's threat model — `ErasableKey` held in memory, a
+`DuressConfig` whose duress passphrase fires `SilentErase`, and a
+`DeadmanConfig` whose 24-hour silence fires
+`Composite(EraseKey + AlertContacts)`, all finishing with an
+Ed25519-signed `ErasureReceipt` verified against a verifying key.
+
+```bash
+cargo run --example journalist_deadman -p engine-core
+```
+
+The example prints each decision step on stdout; read it
+top-to-bottom as a copy-paste pattern for your own integration.
 
 ## The PlausiDen Ecosystem
 

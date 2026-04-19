@@ -85,8 +85,8 @@ mod tests {
 
         let result = ArtifactMetadata::new(
             DataCategory::BrowserActivity,
-            now,       // created
-            earlier,   // modified — before created
+            now,     // created
+            earlier, // modified — before created
             100,
         );
         assert!(result.is_err(), "modified < created must fail validation");

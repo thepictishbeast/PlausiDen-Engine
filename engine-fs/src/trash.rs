@@ -83,8 +83,13 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     TrashTemplate {
         dir: "/home/user/Downloads",
         names: &[
-            "firefox-setup", "vscode-update", "zoom-installer", "slack-desktop",
-            "libreoffice-installer", "steam_setup", "driver-update",
+            "firefox-setup",
+            "vscode-update",
+            "zoom-installer",
+            "slack-desktop",
+            "libreoffice-installer",
+            "steam_setup",
+            "driver-update",
         ],
         ext: "deb",
         mime: "application/vnd.debian.binary-package",
@@ -94,8 +99,12 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     TrashTemplate {
         dir: "/home/user/Downloads",
         names: &[
-            "project-backup", "photos-2024", "old-documents", "archive",
-            "export", "migration-data",
+            "project-backup",
+            "photos-2024",
+            "old-documents",
+            "archive",
+            "export",
+            "migration-data",
         ],
         ext: "tar.gz",
         mime: "application/gzip",
@@ -106,8 +115,13 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     TrashTemplate {
         dir: "/home/user/Documents",
         names: &[
-            "draft_v1", "old_report", "untitled", "notes_backup",
-            "meeting_minutes_old", "todo_list", "scratch",
+            "draft_v1",
+            "old_report",
+            "untitled",
+            "notes_backup",
+            "meeting_minutes_old",
+            "todo_list",
+            "scratch",
         ],
         ext: "docx",
         mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -118,7 +132,10 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     TrashTemplate {
         dir: "/home/user/Pictures",
         names: &[
-            "screenshot_old", "blurry_photo", "duplicate", "IMG_temp",
+            "screenshot_old",
+            "blurry_photo",
+            "duplicate",
+            "IMG_temp",
             "cropped_image",
         ],
         ext: "png",
@@ -129,9 +146,7 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     // Temp files.
     TrashTemplate {
         dir: "/home/user/Desktop",
-        names: &[
-            "temp", "test", "Untitled", "New_Document", "Copy_of_file",
-        ],
+        names: &["temp", "test", "Untitled", "New_Document", "Copy_of_file"],
         ext: "txt",
         mime: "text/plain",
         min_bytes: 100,
@@ -141,8 +156,12 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     TrashTemplate {
         dir: "/home/user/Downloads",
         names: &[
-            "receipt", "boarding_pass", "ticket", "confirmation",
-            "old_manual", "expired_certificate",
+            "receipt",
+            "boarding_pass",
+            "ticket",
+            "confirmation",
+            "old_manual",
+            "expired_certificate",
         ],
         ext: "pdf",
         mime: "application/pdf",
@@ -152,9 +171,7 @@ const TRASH_TEMPLATES: &[TrashTemplate] = &[
     // Spreadsheets.
     TrashTemplate {
         dir: "/home/user/Documents",
-        names: &[
-            "budget_old", "expenses_2023", "data_export", "calculations",
-        ],
+        names: &["budget_old", "expenses_2023", "data_export", "calculations"],
         ext: "xlsx",
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         min_bytes: 20_000,
@@ -228,8 +245,7 @@ impl DataGenerator for TrashGenerator {
         let days_ago = Uniform::new_inclusive(1i64, 60).sample(rng);
         let hours_offset = Uniform::new_inclusive(0i64, 23).sample(rng);
         let minutes_offset = Uniform::new_inclusive(0i64, 59).sample(rng);
-        let deletion_date = context.now
-            - Duration::days(days_ago)
+        let deletion_date = context.now - Duration::days(days_ago)
             + Duration::hours(hours_offset)
             + Duration::minutes(minutes_offset);
         // Clamp to not exceed context.now.
@@ -253,8 +269,12 @@ impl DataGenerator for TrashGenerator {
         let trashinfo_path = format!("{trash_base}/info/{trash_filename}.trashinfo");
         let trashinfo_content = build_trashinfo(&original_path, &deletion_date);
 
-        let meta =
-            ArtifactMetadata::new(DataCategory::FileSystem, deletion_date, deletion_date, file_size)?;
+        let meta = ArtifactMetadata::new(
+            DataCategory::FileSystem,
+            deletion_date,
+            deletion_date,
+            file_size,
+        )?;
 
         let entry = TrashEntry {
             meta,
@@ -297,8 +317,7 @@ mod tests {
             .validate_plausibility()
             .expect("plausibility failed");
         let bytes = artifact.to_bytes().expect("serialization failed");
-        let entry: TrashEntry =
-            serde_json::from_slice(&bytes).expect("deserialization failed");
+        let entry: TrashEntry = serde_json::from_slice(&bytes).expect("deserialization failed");
         assert!(!entry.original_path.is_empty());
         assert!(entry.file_size > 0);
         assert!(entry.trashinfo_content.starts_with("[Trash Info]"));
@@ -316,14 +335,10 @@ mod tests {
                 .generate(&profile, &ctx, &mut rng)
                 .expect("generation failed");
             let bytes = artifact.to_bytes().expect("serialization failed");
-            let entry: TrashEntry =
-                serde_json::from_slice(&bytes).expect("deserialization failed");
+            let entry: TrashEntry = serde_json::from_slice(&bytes).expect("deserialization failed");
             // Validate .trashinfo format.
             let lines: Vec<&str> = entry.trashinfo_content.lines().collect();
-            assert_eq!(
-                lines[0], "[Trash Info]",
-                "first line must be [Trash Info]"
-            );
+            assert_eq!(lines[0], "[Trash Info]", "first line must be [Trash Info]");
             assert!(
                 lines[1].starts_with("Path="),
                 "second line must start with Path="
@@ -349,10 +364,11 @@ mod tests {
                 .generate(&profile, &ctx, &mut rng)
                 .expect("generation failed");
             let bytes = artifact.to_bytes().expect("serialization failed");
-            let entry: TrashEntry =
-                serde_json::from_slice(&bytes).expect("deserialization failed");
+            let entry: TrashEntry = serde_json::from_slice(&bytes).expect("deserialization failed");
             assert!(
-                entry.trashinfo_path.starts_with("/home/user/.local/share/Trash/info/"),
+                entry
+                    .trashinfo_path
+                    .starts_with("/home/user/.local/share/Trash/info/"),
                 "trashinfo path should be under Trash/info/: {}",
                 entry.trashinfo_path,
             );

@@ -135,10 +135,7 @@ pub enum VerifyOutcome {
 /// Time spent in this function is a function of
 /// `1 + config.duress.len()` only — not of which (if any) entry
 /// matched.
-pub fn verify(
-    config: &DuressConfig,
-    candidate_hash: &[u8],
-) -> Result<VerifyOutcome> {
+pub fn verify(config: &DuressConfig, candidate_hash: &[u8]) -> Result<VerifyOutcome> {
     // All-or-nothing: walk every hash, even after a match. Track the
     // first matching response (if any) via `matched_response`; break
     // ties in favor of Real (the common case) without early-exit.
@@ -298,7 +295,9 @@ mod tests {
             duress: vec![DuressEntry {
                 hash: hash_from(b"composite"),
                 response: DuressResponse::Composite(vec![
-                    DuressResponse::SilentAlert { contacts: vec!["a".into()] },
+                    DuressResponse::SilentAlert {
+                        contacts: vec!["a".into()],
+                    },
                     DuressResponse::MountDecoy,
                 ]),
                 label: None,

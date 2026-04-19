@@ -9,6 +9,9 @@
 //!
 //! Run: cargo run --example generate_and_dump
 
+use engine_browser::cookies::CookieGenerator;
+use engine_browser::history::HistoryGenerator;
+use engine_browser::searches::SearchGenerator;
 use engine_core::entropy::seeded_rng;
 use engine_core::paranoia;
 use engine_core::profile::{
@@ -17,9 +20,6 @@ use engine_core::profile::{
 };
 use engine_core::schedule::OrganicScheduler;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use engine_browser::history::HistoryGenerator;
-use engine_browser::cookies::CookieGenerator;
-use engine_browser::searches::SearchGenerator;
 
 fn main() {
     // 1. Create a user profile — a journalist investigating privacy tools
@@ -117,11 +117,7 @@ fn main() {
     for _ in 0..10 {
         let next = scheduler.next_timestamp(current, &mut rng);
         let gap = (next - current).num_seconds();
-        println!(
-            "  {} (+{}s gap)",
-            next.format("%H:%M:%S"),
-            gap,
-        );
+        println!("  {} (+{}s gap)", next.format("%H:%M:%S"), gap,);
         current = next;
     }
 

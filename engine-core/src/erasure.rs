@@ -128,9 +128,7 @@ impl ErasableKey {
                 let ptr = boxed.as_mut_ptr() as *mut libc::c_void;
                 let len = std::mem::size_of::<[u8; 32]>();
                 if libc::mlock(ptr, len) != 0 {
-                    return Err(EngineError::MlockFailed(
-                        std::io::Error::last_os_error(),
-                    ));
+                    return Err(EngineError::MlockFailed(std::io::Error::last_os_error()));
                 }
                 // Best-effort MADV_DONTDUMP — some kernels / containers
                 // don't implement it. We don't ERROR on failure (mlock is
@@ -329,11 +327,11 @@ impl ErasureReason {
     fn tag_byte(self) -> u8 {
         match self {
             Self::UserInitiated => 0x01,
-            Self::Deadman       => 0x02,
-            Self::Duress        => 0x03,
-            Self::Rotation      => 0x04,
-            Self::SwarmDestroy  => 0x05,
-            Self::Policy        => 0x06,
+            Self::Deadman => 0x02,
+            Self::Duress => 0x03,
+            Self::Rotation => 0x04,
+            Self::SwarmDestroy => 0x05,
+            Self::Policy => 0x06,
         }
     }
 }
@@ -397,7 +395,10 @@ mod tests {
             KeyStorage::Memory,
             KeyStorage::MemoryAndDisk,
             KeyStorage::Hardware,
-            KeyStorage::ShamirShares { threshold: 3, total: 5 },
+            KeyStorage::ShamirShares {
+                threshold: 3,
+                total: 5,
+            },
         ];
         for s in all {
             let _ = format!("{s:?}");
@@ -438,19 +439,17 @@ mod tests {
             &sk,
         );
         assert_eq!(receipt.signature.len(), 64);
-        receipt.verify_with(&vk).expect("fresh signature must verify");
+        receipt
+            .verify_with(&vk)
+            .expect("fresh signature must verify");
     }
 
     #[test]
     fn tampered_receipt_fails_verification() {
         let sk = test_signing_key();
         let vk = sk.verifying_key();
-        let mut receipt = ErasureReceipt::sign(
-            KeyId::new(),
-            1_700_000_000,
-            ErasureReason::Deadman,
-            &sk,
-        );
+        let mut receipt =
+            ErasureReceipt::sign(KeyId::new(), 1_700_000_000, ErasureReason::Deadman, &sk);
         // Tamper with the timestamp.
         receipt.erased_at += 1;
         assert!(receipt.verify_with(&vk).is_err());
@@ -460,12 +459,8 @@ mod tests {
     fn wrong_key_fails_verification() {
         let sk_a = test_signing_key();
         let sk_b = test_signing_key();
-        let receipt = ErasureReceipt::sign(
-            KeyId::new(),
-            1_700_000_000,
-            ErasureReason::Rotation,
-            &sk_a,
-        );
+        let receipt =
+            ErasureReceipt::sign(KeyId::new(), 1_700_000_000, ErasureReason::Rotation, &sk_a);
         // Verifying with sk_b's public key must fail.
         assert!(receipt.verify_with(&sk_b.verifying_key()).is_err());
     }
@@ -475,11 +470,11 @@ mod tests {
         // Renumbering these would invalidate every previously-issued
         // receipt — any change needs a forensic-compat note.
         assert_eq!(ErasureReason::UserInitiated.tag_byte(), 0x01);
-        assert_eq!(ErasureReason::Deadman.tag_byte(),       0x02);
-        assert_eq!(ErasureReason::Duress.tag_byte(),        0x03);
-        assert_eq!(ErasureReason::Rotation.tag_byte(),      0x04);
-        assert_eq!(ErasureReason::SwarmDestroy.tag_byte(),  0x05);
-        assert_eq!(ErasureReason::Policy.tag_byte(),        0x06);
+        assert_eq!(ErasureReason::Deadman.tag_byte(), 0x02);
+        assert_eq!(ErasureReason::Duress.tag_byte(), 0x03);
+        assert_eq!(ErasureReason::Rotation.tag_byte(), 0x04);
+        assert_eq!(ErasureReason::SwarmDestroy.tag_byte(), 0x05);
+        assert_eq!(ErasureReason::Policy.tag_byte(), 0x06);
     }
 
     #[test]

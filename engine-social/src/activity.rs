@@ -156,15 +156,31 @@ fn circadian_multiplier(hour: u32, weekday: chrono::Weekday) -> f64 {
     let base = match hour {
         0..=5 => 0.1,
         6..=8 => 0.4,
-        9..=11 => if is_weekend { 0.6 } else { 0.25 },
+        9..=11 => {
+            if is_weekend {
+                0.6
+            } else {
+                0.25
+            }
+        }
         12..=13 => 0.45, // lunch break bump
-        14..=16 => if is_weekend { 0.6 } else { 0.2 },
+        14..=16 => {
+            if is_weekend {
+                0.6
+            } else {
+                0.2
+            }
+        }
         17..=18 => 0.6,
         19..=22 => 0.9,
         23 => 0.5,
         _ => 0.3,
     };
-    if is_weekend { (base * 1.3_f64).min(1.0) } else { base }
+    if is_weekend {
+        (base * 1.3_f64).min(1.0)
+    } else {
+        base
+    }
 }
 
 /// Generates social media activity artifacts with circadian patterns.
@@ -302,8 +318,12 @@ mod tests {
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
         let mut rng = seeded_rng(42);
-        let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation failed");
-        artifact.validate_plausibility().expect("plausibility check failed");
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .expect("generation failed");
+        artifact
+            .validate_plausibility()
+            .expect("plausibility check failed");
     }
 
     #[test]
@@ -349,9 +369,18 @@ mod tests {
         // Like ~35%, Post ~15%, Comment ~20%, Share ~15%, Follow ~15%
         assert!(likes > 250 && likes < 450, "likes ~35%, got {likes}/1000");
         assert!(posts > 80 && posts < 250, "posts ~15%, got {posts}/1000");
-        assert!(comments > 120 && comments < 300, "comments ~20%, got {comments}/1000");
-        assert!(shares > 80 && shares < 250, "shares ~15%, got {shares}/1000");
-        assert!(follows > 80 && follows < 250, "follows ~15%, got {follows}/1000");
+        assert!(
+            comments > 120 && comments < 300,
+            "comments ~20%, got {comments}/1000"
+        );
+        assert!(
+            shares > 80 && shares < 250,
+            "shares ~15%, got {shares}/1000"
+        );
+        assert!(
+            follows > 80 && follows < 250,
+            "follows ~15%, got {follows}/1000"
+        );
     }
 
     #[test]
@@ -359,7 +388,13 @@ mod tests {
         let generator = ActivityGenerator::new();
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
-        let generic_names = ["microblog", "photoshare", "videotube", "linkboard", "chatroom"];
+        let generic_names = [
+            "microblog",
+            "photoshare",
+            "videotube",
+            "linkboard",
+            "chatroom",
+        ];
 
         for seed in 0..200 {
             let mut rng = seeded_rng(seed);
@@ -417,8 +452,7 @@ mod tests {
         let mut rng = seeded_rng(77);
         let artifact = generator.generate(&profile, &ctx, &mut rng).expect("gen");
         let bytes = artifact.to_bytes().expect("to_bytes");
-        let deserialized: SocialActivity =
-            serde_json::from_slice(&bytes).expect("deserialize");
+        let deserialized: SocialActivity = serde_json::from_slice(&bytes).expect("deserialize");
         assert!(!deserialized.platform.is_empty());
         assert!(deserialized.engagement_count <= 2000);
     }

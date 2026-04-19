@@ -81,10 +81,7 @@ impl Artifact for LoginEntry {
         if let Some(lt) = self.logout_time {
             if lt < self.login_time {
                 return Err(EngineError::ImplausibleArtifact {
-                    reason: format!(
-                        "logout time ({lt}) before login time ({})",
-                        self.login_time
-                    ),
+                    reason: format!("logout time ({lt}) before login time ({})", self.login_time),
                 });
             }
         }
@@ -187,9 +184,7 @@ impl DataGenerator for LoginHistoryGenerator {
             Some(
                 SSH_SOURCE_IPS
                     .choose(rng)
-                    .ok_or_else(|| {
-                        EngineError::InvalidContext("no source IPs available".into())
-                    })?
+                    .ok_or_else(|| EngineError::InvalidContext("no source IPs available".into()))?
                     .to_string(),
             )
         } else {
@@ -252,12 +247,7 @@ impl DataGenerator for LoginHistoryGenerator {
             modified_at
         };
 
-        let meta = ArtifactMetadata::new(
-            DataCategory::System,
-            login_time,
-            safe_modified_at,
-            256,
-        )?;
+        let meta = ArtifactMetadata::new(DataCategory::System, login_time, safe_modified_at, 256)?;
 
         let entry = LoginEntry {
             meta,
@@ -390,9 +380,7 @@ mod tests {
                 .expect("generation ok");
             let bytes = artifact.to_bytes().expect("serialize ok");
             let entry: LoginEntry = serde_json::from_slice(&bytes).expect("deserialize ok");
-            if entry.session_type == SessionType::Local
-                || entry.session_type == SessionType::Gui
-            {
+            if entry.session_type == SessionType::Local || entry.session_type == SessionType::Gui {
                 assert!(
                     entry.source_ip.is_none(),
                     "Local/GUI sessions should not have a source IP"
@@ -556,12 +544,8 @@ mod tests {
         );
         let mut rng1 = seeded_rng(555);
         let mut rng2 = seeded_rng(555);
-        let a1 = generator
-            .generate(&profile, &ctx, &mut rng1)
-            .expect("ok");
-        let a2 = generator
-            .generate(&profile, &ctx, &mut rng2)
-            .expect("ok");
+        let a1 = generator.generate(&profile, &ctx, &mut rng1).expect("ok");
+        let a2 = generator.generate(&profile, &ctx, &mut rng2).expect("ok");
         // Compare via deserialized fields (UUID is non-deterministic).
         let e1: LoginEntry =
             serde_json::from_slice(&a1.to_bytes().expect("serialize")).expect("deser");

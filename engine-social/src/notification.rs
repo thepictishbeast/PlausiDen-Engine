@@ -90,14 +90,14 @@ const PLATFORMS: &[&str] = &[
 
 /// Username prefixes for generating from_user handles.
 const USER_PREFIXES: &[&str] = &[
-    "sunny", "night", "blue", "red", "cool", "happy", "wild", "calm",
-    "swift", "bright", "quiet", "bold", "free", "warm", "crisp", "keen",
+    "sunny", "night", "blue", "red", "cool", "happy", "wild", "calm", "swift", "bright", "quiet",
+    "bold", "free", "warm", "crisp", "keen",
 ];
 
 /// Username suffixes for generating from_user handles.
 const USER_SUFFIXES: &[&str] = &[
-    "fox", "owl", "wave", "leaf", "star", "bird", "wolf", "bear",
-    "moon", "rain", "sky", "tree", "wind", "fish", "haze", "glow",
+    "fox", "owl", "wave", "leaf", "star", "bird", "wolf", "bear", "moon", "rain", "sky", "tree",
+    "wind", "fish", "haze", "glow",
 ];
 
 /// Like notification content templates.
@@ -314,8 +314,7 @@ mod tests {
             let mut rng = seeded_rng(seed);
             let artifact = generator.generate(&profile, &ctx, &mut rng).expect("gen");
             let bytes = artifact.to_bytes().expect("serialize");
-            let notif: SocialNotification =
-                serde_json::from_slice(&bytes).expect("deserialize");
+            let notif: SocialNotification = serde_json::from_slice(&bytes).expect("deserialize");
             match notif.notification_type {
                 NotificationType::Like => likes += 1,
                 NotificationType::Comment => comments += 1,
@@ -326,9 +325,18 @@ mod tests {
         }
         // Like ~35%, Comment ~25%, Follow ~15%, Mention ~15%, DM ~10%
         assert!(likes > 250 && likes < 450, "likes ~35%, got {likes}/1000");
-        assert!(comments > 170 && comments < 330, "comments ~25%, got {comments}/1000");
-        assert!(follows > 80 && follows < 250, "follows ~15%, got {follows}/1000");
-        assert!(mentions > 80 && mentions < 250, "mentions ~15%, got {mentions}/1000");
+        assert!(
+            comments > 170 && comments < 330,
+            "comments ~25%, got {comments}/1000"
+        );
+        assert!(
+            follows > 80 && follows < 250,
+            "follows ~15%, got {follows}/1000"
+        );
+        assert!(
+            mentions > 80 && mentions < 250,
+            "mentions ~15%, got {mentions}/1000"
+        );
         assert!(dms > 40 && dms < 180, "dms ~10%, got {dms}/1000");
     }
 
@@ -343,10 +351,11 @@ mod tests {
         let mut low_offsets = Vec::new();
         for seed in 0..200 {
             let mut rng = seeded_rng(seed);
-            let artifact = generator.generate(&low_profile, &ctx, &mut rng).expect("gen");
+            let artifact = generator
+                .generate(&low_profile, &ctx, &mut rng)
+                .expect("gen");
             let bytes = artifact.to_bytes().expect("serialize");
-            let notif: SocialNotification =
-                serde_json::from_slice(&bytes).expect("deserialize");
+            let notif: SocialNotification = serde_json::from_slice(&bytes).expect("deserialize");
             low_offsets.push((ctx.now - notif.timestamp).num_seconds());
         }
 
@@ -356,10 +365,11 @@ mod tests {
         let mut high_offsets = Vec::new();
         for seed in 0..200 {
             let mut rng = seeded_rng(seed);
-            let artifact = generator.generate(&high_profile, &ctx, &mut rng).expect("gen");
+            let artifact = generator
+                .generate(&high_profile, &ctx, &mut rng)
+                .expect("gen");
             let bytes = artifact.to_bytes().expect("serialize");
-            let notif: SocialNotification =
-                serde_json::from_slice(&bytes).expect("deserialize");
+            let notif: SocialNotification = serde_json::from_slice(&bytes).expect("deserialize");
             high_offsets.push((ctx.now - notif.timestamp).num_seconds());
         }
 
@@ -378,14 +388,19 @@ mod tests {
         let generator = NotificationGenerator::new();
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
-        let generic_names = ["microblog", "photoshare", "videotube", "linkboard", "chatroom"];
+        let generic_names = [
+            "microblog",
+            "photoshare",
+            "videotube",
+            "linkboard",
+            "chatroom",
+        ];
 
         for seed in 0..200 {
             let mut rng = seeded_rng(seed);
             let artifact = generator.generate(&profile, &ctx, &mut rng).expect("gen");
             let bytes = artifact.to_bytes().expect("serialize");
-            let notif: SocialNotification =
-                serde_json::from_slice(&bytes).expect("deserialize");
+            let notif: SocialNotification = serde_json::from_slice(&bytes).expect("deserialize");
             assert!(
                 generic_names.contains(&notif.platform.as_str()),
                 "platform '{}' not generic at seed {seed}",
@@ -403,8 +418,7 @@ mod tests {
             let mut rng = seeded_rng(seed);
             let artifact = generator.generate(&profile, &ctx, &mut rng).expect("gen");
             let bytes = artifact.to_bytes().expect("serialize");
-            let notif: SocialNotification =
-                serde_json::from_slice(&bytes).expect("deserialize");
+            let notif: SocialNotification = serde_json::from_slice(&bytes).expect("deserialize");
             assert!(
                 !notif.from_user.is_empty(),
                 "from_user empty at seed {seed}"
@@ -420,8 +434,7 @@ mod tests {
         let mut rng = seeded_rng(77);
         let artifact = generator.generate(&profile, &ctx, &mut rng).expect("gen");
         let bytes = artifact.to_bytes().expect("to_bytes");
-        let notif: SocialNotification =
-            serde_json::from_slice(&bytes).expect("deserialize");
+        let notif: SocialNotification = serde_json::from_slice(&bytes).expect("deserialize");
         assert!(!notif.platform.is_empty());
         assert!(!notif.from_user.is_empty());
         assert!(!notif.content.is_empty());

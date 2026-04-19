@@ -90,8 +90,8 @@ const MESSAGING_PLATFORMS: &[&str] = &[
 
 /// First names for generating contact names.
 const FIRST_NAMES: &[&str] = &[
-    "Alex", "Jordan", "Morgan", "Casey", "Riley", "Quinn", "Avery", "Taylor",
-    "Drew", "Jamie", "Sam", "Robin", "Pat", "Dana", "Lee", "Skyler",
+    "Alex", "Jordan", "Morgan", "Casey", "Riley", "Quinn", "Avery", "Taylor", "Drew", "Jamie",
+    "Sam", "Robin", "Pat", "Dana", "Lee", "Skyler",
 ];
 
 /// Last initials for generating contact names.
@@ -278,8 +278,12 @@ mod tests {
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
         let mut rng = seeded_rng(42);
-        let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation failed");
-        artifact.validate_plausibility().expect("plausibility failed");
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .expect("generation failed");
+        artifact
+            .validate_plausibility()
+            .expect("plausibility failed");
     }
 
     #[test]
@@ -379,7 +383,13 @@ mod tests {
         let generator = MessagingGenerator::new();
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
-        let generic_names = ["quickchat", "buzzmsg", "pingsend", "directline", "grouplink"];
+        let generic_names = [
+            "quickchat",
+            "buzzmsg",
+            "pingsend",
+            "directline",
+            "grouplink",
+        ];
 
         for seed in 0..200 {
             let mut rng = seeded_rng(seed);

@@ -414,8 +414,7 @@ impl HttpGenerator {
 
         // Content transfer — proportional to body size, minimum 1ms
         let transfer_base = (body_size / 100_000) as u32; // ~100KB/ms baseline
-        let content_transfer_ms =
-            transfer_base + Uniform::new_inclusive(1u32, 50).sample(rng);
+        let content_transfer_ms = transfer_base + Uniform::new_inclusive(1u32, 50).sample(rng);
 
         HttpTiming {
             dns_lookup_ms,
@@ -452,23 +451,22 @@ impl DataGenerator for HttpGenerator {
         let body_size_bytes = Uniform::new_inclusive(*min_size, *max_size).sample(rng);
 
         // For 304 Not Modified, body is empty
-        let body_size_bytes = if status_code == 304 { 0 } else { body_size_bytes };
+        let body_size_bytes = if status_code == 304 {
+            0
+        } else {
+            body_size_bytes
+        };
 
         let request_headers = Self::build_request_headers(rng);
-        let response_headers =
-            Self::build_response_headers(content_type, body_size_bytes, rng);
+        let response_headers = Self::build_response_headers(content_type, body_size_bytes, rng);
         let timing = Self::build_timing(body_size_bytes, rng);
 
         let jitter = Uniform::new_inclusive(0i64, 300).sample(rng);
         let timestamp = context.now - Duration::seconds(jitter);
 
         let estimated_size = (url.len() as u64) + body_size_bytes + 512; // headers overhead
-        let meta = ArtifactMetadata::new(
-            DataCategory::Network,
-            timestamp,
-            timestamp,
-            estimated_size,
-        )?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::Network, timestamp, timestamp, estimated_size)?;
 
         let entry = HttpEntry {
             meta,
@@ -597,10 +595,19 @@ mod tests {
             let b = a.to_bytes().unwrap();
             let e: HttpEntry = serde_json::from_slice(&b).unwrap();
             // TCP, TLS, TTFB, and transfer should all be > 0
-            assert!(e.timing.tcp_connect_ms > 0, "tcp_connect_ms should be positive");
-            assert!(e.timing.tls_handshake_ms > 0, "tls_handshake_ms should be positive");
+            assert!(
+                e.timing.tcp_connect_ms > 0,
+                "tcp_connect_ms should be positive"
+            );
+            assert!(
+                e.timing.tls_handshake_ms > 0,
+                "tls_handshake_ms should be positive"
+            );
             assert!(e.timing.ttfb_ms > 0, "ttfb_ms should be positive");
-            assert!(e.timing.content_transfer_ms > 0, "content_transfer_ms should be positive");
+            assert!(
+                e.timing.content_transfer_ms > 0,
+                "content_transfer_ms should be positive"
+            );
             assert!(e.timing.total_ms() > 0, "total timing should be positive");
             assert!(
                 e.timing.total_ms() <= 60_000,
@@ -660,6 +667,9 @@ mod tests {
                 found_304 = true;
             }
         }
-        assert!(found_304, "should generate at least one 304 in 5000 entries");
+        assert!(
+            found_304,
+            "should generate at least one 304 in 5000 entries"
+        );
     }
 }

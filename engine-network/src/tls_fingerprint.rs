@@ -219,7 +219,12 @@ const SAFARI_17: BrowserProfile = BrowserProfile {
         EXT_PSK_KEY_EXCHANGE_MODES,
         EXT_KEY_SHARE,
     ],
-    supported_groups: &[GROUP_X25519, GROUP_SECP256R1, GROUP_SECP384R1, GROUP_SECP521R1],
+    supported_groups: &[
+        GROUP_X25519,
+        GROUP_SECP256R1,
+        GROUP_SECP384R1,
+        GROUP_SECP521R1,
+    ],
 };
 
 /// curl/wget (OpenSSL) -- TLS 1.2 default, suspicious in browser-expected contexts.
@@ -406,10 +411,7 @@ impl Artifact for TlsFingerprint {
         }
         if self.ja3_hash.len() != 32 {
             return Err(EngineError::ImplausibleArtifact {
-                reason: format!(
-                    "JA3 hash must be 32 hex chars, got {}",
-                    self.ja3_hash.len()
-                ),
+                reason: format!("JA3 hash must be 32 hex chars, got {}", self.ja3_hash.len()),
             });
         }
         if self.cipher_suite.is_empty() {
@@ -509,12 +511,8 @@ impl DataGenerator for TlsFingerprintGenerator {
         let timestamp = context.now - Duration::seconds(jitter);
 
         let estimated_size = server_name.len() as u64 + ja3_hash.len() as u64 + 256;
-        let meta = ArtifactMetadata::new(
-            DataCategory::Network,
-            timestamp,
-            timestamp,
-            estimated_size,
-        )?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::Network, timestamp, timestamp, estimated_size)?;
 
         let entry = TlsFingerprint {
             meta,
@@ -735,10 +733,7 @@ mod tests {
 
         // All extensions should be human-readable names, not numeric.
         for ext in &entry.extensions {
-            assert!(
-                !ext.is_empty(),
-                "extension name must not be empty"
-            );
+            assert!(!ext.is_empty(), "extension name must not be empty");
             // Should not be a raw numeric string.
             assert!(
                 ext.parse::<u16>().is_err(),

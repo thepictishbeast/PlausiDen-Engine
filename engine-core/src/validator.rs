@@ -53,7 +53,9 @@ pub struct ArtifactValidator {
 
 impl ArtifactValidator {
     pub fn new() -> Self {
-        Self { rules: HashMap::new() }
+        Self {
+            rules: HashMap::new(),
+        }
     }
 
     /// Add a rule for a field.
@@ -77,9 +79,8 @@ impl ArtifactValidator {
 
     /// Validate a batch. Enforces Unique rules across the batch.
     pub fn validate_batch(&self, batch: &[HashMap<String, String>]) -> Vec<Vec<ValidationIssue>> {
-        let mut results: Vec<Vec<ValidationIssue>> = batch.iter()
-            .map(|a| self.validate(a))
-            .collect();
+        let mut results: Vec<Vec<ValidationIssue>> =
+            batch.iter().map(|a| self.validate(a)).collect();
 
         // Unique fields across batch.
         for (field, rules) in &self.rules {
@@ -117,7 +118,9 @@ impl ArtifactValidator {
                         message: "field is empty".into(),
                         severity: Severity::Error,
                     })
-                } else { None }
+                } else {
+                    None
+                }
             }
             Rule::AllowedValues(values) => {
                 if !values.contains(&value.to_string()) {
@@ -127,7 +130,9 @@ impl ArtifactValidator {
                         message: format!("'{}' not in allowlist", value),
                         severity: Severity::Error,
                     })
-                } else { None }
+                } else {
+                    None
+                }
             }
             Rule::LengthRange(min, max) => {
                 if value.len() < *min || value.len() > *max {
@@ -137,7 +142,9 @@ impl ArtifactValidator {
                         message: format!("length {} outside [{}, {}]", value.len(), min, max),
                         severity: Severity::Warn,
                     })
-                } else { None }
+                } else {
+                    None
+                }
             }
             Rule::IsInteger => {
                 if value.parse::<u64>().is_err() {
@@ -147,7 +154,9 @@ impl ArtifactValidator {
                         message: format!("'{}' not a valid integer", value),
                         severity: Severity::Error,
                     })
-                } else { None }
+                } else {
+                    None
+                }
             }
             Rule::IsTimestamp => {
                 if chrono::DateTime::parse_from_rfc3339(value).is_err() {
@@ -157,7 +166,9 @@ impl ArtifactValidator {
                         message: format!("'{}' not a valid ISO 8601 timestamp", value),
                         severity: Severity::Error,
                     })
-                } else { None }
+                } else {
+                    None
+                }
             }
             Rule::StartsWithAny(prefixes) => {
                 if !prefixes.iter().any(|p| value.starts_with(p)) {
@@ -167,7 +178,9 @@ impl ArtifactValidator {
                         message: format!("'{}' doesn't match any prefix", value),
                         severity: Severity::Warn,
                     })
-                } else { None }
+                } else {
+                    None
+                }
             }
             Rule::DenyPatterns(patterns) => {
                 for p in patterns {
@@ -192,7 +205,9 @@ impl ArtifactValidator {
 }
 
 impl Default for ArtifactValidator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -200,7 +215,10 @@ mod tests {
     use super::*;
 
     fn artifact(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
@@ -222,7 +240,10 @@ mod tests {
     #[test]
     fn test_allowed_values() {
         let mut v = ArtifactValidator::new();
-        v.add_rule("method", Rule::AllowedValues(vec!["GET".into(), "POST".into()]));
+        v.add_rule(
+            "method",
+            Rule::AllowedValues(vec!["GET".into(), "POST".into()]),
+        );
         let issues = v.validate(&artifact(&[("method", "DELETE")]));
         assert_eq!(issues.len(), 1);
     }
@@ -238,7 +259,8 @@ mod tests {
         v.add_rule("title", Rule::LengthRange(5, 100));
         // In-range value should produce no issues.
         assert!(
-            v.validate(&artifact(&[("title", "valid title")])).is_empty(),
+            v.validate(&artifact(&[("title", "valid title")]))
+                .is_empty(),
             "an 11-char title in [5, 100] should produce no issues",
         );
         // Too-short value should produce a LengthRange issue.
@@ -278,23 +300,41 @@ mod tests {
     fn test_is_timestamp() {
         let mut v = ArtifactValidator::new();
         v.add_rule("ts", Rule::IsTimestamp);
-        assert!(v.validate(&artifact(&[("ts", "2025-01-01T00:00:00Z")])).is_empty());
+        assert!(
+            v.validate(&artifact(&[("ts", "2025-01-01T00:00:00Z")]))
+                .is_empty()
+        );
         assert!(!v.validate(&artifact(&[("ts", "invalid")])).is_empty());
     }
 
     #[test]
     fn test_starts_with_any() {
         let mut v = ArtifactValidator::new();
-        v.add_rule("url", Rule::StartsWithAny(vec!["http://".into(), "https://".into()]));
-        assert!(v.validate(&artifact(&[("url", "https://example.com")])).is_empty());
-        assert!(!v.validate(&artifact(&[("url", "ftp://example.com")])).is_empty());
+        v.add_rule(
+            "url",
+            Rule::StartsWithAny(vec!["http://".into(), "https://".into()]),
+        );
+        assert!(
+            v.validate(&artifact(&[("url", "https://example.com")]))
+                .is_empty()
+        );
+        assert!(
+            !v.validate(&artifact(&[("url", "ftp://example.com")]))
+                .is_empty()
+        );
     }
 
     #[test]
     fn test_deny_patterns() {
         let mut v = ArtifactValidator::new();
-        v.add_rule("content", Rule::DenyPatterns(vec!["PROD".into(), "SECRET".into()]));
-        assert!(!v.validate(&artifact(&[("content", "this has PROD in it")])).is_empty());
+        v.add_rule(
+            "content",
+            Rule::DenyPatterns(vec!["PROD".into(), "SECRET".into()]),
+        );
+        assert!(
+            !v.validate(&artifact(&[("content", "this has PROD in it")]))
+                .is_empty()
+        );
     }
 
     #[test]

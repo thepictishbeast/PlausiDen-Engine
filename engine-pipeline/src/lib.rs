@@ -38,9 +38,9 @@ use engine_core::schedule::OrganicScheduler;
 use engine_core::traits::{Artifact, DataCategory, DataGenerator, GenerationContext};
 use engine_fs::files::RecentDocumentsGenerator as FileGenerator;
 use engine_network::dns::DnsQueryGenerator as DnsGenerator;
+use engine_social::activity::ActivityGenerator as SocialGenerator;
 use engine_system::logs::LogGenerator;
 use engine_system::processes::ProcessGenerator;
-use engine_social::activity::ActivityGenerator as SocialGenerator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -62,7 +62,12 @@ enum AnyGenerator {
 }
 
 impl AnyGenerator {
-    fn generate_artifact(&self, profile: &UserProfile, context: &GenerationContext, rng: &mut ChaCha20Rng) -> Result<Box<dyn Artifact>> {
+    fn generate_artifact(
+        &self,
+        profile: &UserProfile,
+        context: &GenerationContext,
+        rng: &mut ChaCha20Rng,
+    ) -> Result<Box<dyn Artifact>> {
         match self {
             Self::History(g) => g.generate(profile, context, rng),
             Self::Cookie(g) => g.generate(profile, context, rng),
@@ -153,10 +158,8 @@ impl PollutionPipeline {
     /// The pipeline starts with no generators; call
     /// [`with_generators`](Self::with_generators) to enable data categories.
     pub fn new(profile: UserProfile, seed: u64) -> Self {
-        let scheduler = OrganicScheduler::new(
-            profile.activity_schedule.clone(),
-            profile.risk_level,
-        );
+        let scheduler =
+            OrganicScheduler::new(profile.activity_schedule.clone(), profile.risk_level);
         Self {
             profile,
             scheduler,
@@ -174,22 +177,28 @@ impl PollutionPipeline {
         for category in &categories {
             match category {
                 DataCategory::BrowserActivity => {
-                    self.generators.push(AnyGenerator::History(HistoryGenerator::new()));
-                    self.generators.push(AnyGenerator::Cookie(CookieGenerator::new()));
-                    self.generators.push(AnyGenerator::Search(SearchGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::History(HistoryGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::Cookie(CookieGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::Search(SearchGenerator::new()));
                 }
                 DataCategory::FileSystem => {
-                    self.generators.push(AnyGenerator::File(FileGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::File(FileGenerator::new()));
                 }
                 DataCategory::Network => {
                     self.generators.push(AnyGenerator::Dns(DnsGenerator::new()));
                 }
                 DataCategory::System => {
                     self.generators.push(AnyGenerator::Log(LogGenerator::new()));
-                    self.generators.push(AnyGenerator::Process(ProcessGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::Process(ProcessGenerator::new()));
                 }
                 DataCategory::Social => {
-                    self.generators.push(AnyGenerator::Social(SocialGenerator::new()));
+                    self.generators
+                        .push(AnyGenerator::Social(SocialGenerator::new()));
                 }
                 other => {
                     warn!(category = ?other, "category generators coming soon -- skipping");
@@ -264,8 +273,7 @@ impl PollutionPipeline {
                             let category = generator.category();
 
                             // Strip internal metadata before storing
-                            let bytes = strip_meta_field(&raw_bytes)
-                                .unwrap_or(raw_bytes);
+                            let bytes = strip_meta_field(&raw_bytes).unwrap_or(raw_bytes);
 
                             artifacts.push(GeneratedArtifact {
                                 category,
@@ -305,11 +313,7 @@ impl PollutionPipeline {
     /// The output bytes have the `meta` field stripped so that internal
     /// engine metadata never reaches the target database. The result is
     /// the exact JSON that `plausiden-inject` expects.
-    pub fn generate_injectable(
-        &mut self,
-        count: usize,
-        target: InjectionTarget,
-    ) -> Vec<Vec<u8>> {
+    pub fn generate_injectable(&mut self, count: usize, target: InjectionTarget) -> Vec<Vec<u8>> {
         let category_filter = target_to_category(target);
         let raw = self.generate_batch(count);
 
@@ -501,10 +505,7 @@ mod tests {
                 .unwrap_or_else(|e| panic!("artifact {i} is not valid JSON: {e}"));
 
             // Verify it is a non-empty JSON object
-            assert!(
-                value.is_object(),
-                "artifact {i} must be a JSON object"
-            );
+            assert!(value.is_object(), "artifact {i} must be a JSON object");
             assert!(
                 !value.as_object().unwrap().is_empty(),
                 "artifact {i} must not be empty"
@@ -539,11 +540,7 @@ mod tests {
         let mut pipeline = browser_pipeline(42);
         let injectable = pipeline.generate_injectable(20, InjectionTarget::FirefoxHistory);
 
-        assert_eq!(
-            injectable.len(),
-            20,
-            "must produce 20 injectable outputs"
-        );
+        assert_eq!(injectable.len(), 20, "must produce 20 injectable outputs");
 
         for (i, bytes) in injectable.iter().enumerate() {
             let value: serde_json::Value = serde_json::from_slice(bytes)
@@ -556,10 +553,7 @@ mod tests {
             );
 
             // Should still have real payload fields
-            assert!(
-                value.is_object(),
-                "injectable {i} must be a JSON object"
-            );
+            assert!(value.is_object(), "injectable {i} must be a JSON object");
             let obj = value.as_object().unwrap();
             assert!(
                 !obj.is_empty(),
@@ -664,10 +658,7 @@ mod tests {
         // have completed at or before the wall-clock `after`.
         // Sanity check that the call returned promptly (real test).
         let elapsed = (after - before).num_seconds();
-        assert!(
-            elapsed < 30,
-            "session should run quickly, took {elapsed}s",
-        );
+        assert!(elapsed < 30, "session should run quickly, took {elapsed}s",);
 
         assert_eq!(
             report.total_generated,

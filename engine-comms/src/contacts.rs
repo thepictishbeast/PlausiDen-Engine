@@ -18,49 +18,248 @@ use serde::{Deserialize, Serialize};
 // ---- Name pools (English) ----
 
 const FIRST_NAMES: &[&str] = &[
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
-    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
-    "Thomas", "Sarah", "Charles", "Karen", "Christopher", "Lisa", "Daniel", "Nancy",
-    "Matthew", "Betty", "Anthony", "Margaret", "Mark", "Sandra", "Donald", "Ashley",
-    "Steven", "Dorothy", "Andrew", "Kimberly", "Paul", "Emily", "Joshua", "Donna",
-    "Kenneth", "Michelle", "Kevin", "Carol", "Brian", "Amanda", "George", "Melissa",
-    "Timothy", "Deborah", "Ronald", "Stephanie", "Edward", "Rebecca", "Jason", "Sharon",
-    "Jeffrey", "Laura", "Ryan", "Cynthia", "Jacob", "Kathleen", "Gary", "Amy",
-    "Nicholas", "Angela", "Eric", "Shirley", "Jonathan", "Anna", "Stephen", "Brenda",
-    "Larry", "Pamela", "Justin", "Emma", "Scott", "Nicole", "Brandon", "Helen",
-    "Benjamin", "Samantha", "Samuel", "Katherine", "Raymond", "Christine", "Gregory", "Debra",
-    "Frank", "Rachel", "Alexander", "Carolyn", "Patrick", "Janet", "Jack", "Catherine",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Charles",
+    "Karen",
+    "Christopher",
+    "Lisa",
+    "Daniel",
+    "Nancy",
+    "Matthew",
+    "Betty",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Donald",
+    "Ashley",
+    "Steven",
+    "Dorothy",
+    "Andrew",
+    "Kimberly",
+    "Paul",
+    "Emily",
+    "Joshua",
+    "Donna",
+    "Kenneth",
+    "Michelle",
+    "Kevin",
+    "Carol",
+    "Brian",
+    "Amanda",
+    "George",
+    "Melissa",
+    "Timothy",
+    "Deborah",
+    "Ronald",
+    "Stephanie",
+    "Edward",
+    "Rebecca",
+    "Jason",
+    "Sharon",
+    "Jeffrey",
+    "Laura",
+    "Ryan",
+    "Cynthia",
+    "Jacob",
+    "Kathleen",
+    "Gary",
+    "Amy",
+    "Nicholas",
+    "Angela",
+    "Eric",
+    "Shirley",
+    "Jonathan",
+    "Anna",
+    "Stephen",
+    "Brenda",
+    "Larry",
+    "Pamela",
+    "Justin",
+    "Emma",
+    "Scott",
+    "Nicole",
+    "Brandon",
+    "Helen",
+    "Benjamin",
+    "Samantha",
+    "Samuel",
+    "Katherine",
+    "Raymond",
+    "Christine",
+    "Gregory",
+    "Debra",
+    "Frank",
+    "Rachel",
+    "Alexander",
+    "Carolyn",
+    "Patrick",
+    "Janet",
+    "Jack",
+    "Catherine",
 ];
 
 const LAST_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
-    "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
-    "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
-    "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill",
-    "Flores", "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell",
-    "Mitchell", "Carter", "Roberts", "Gomez", "Phillips", "Evans", "Turner", "Diaz",
-    "Parker", "Cruz", "Edwards", "Collins", "Reyes", "Stewart", "Morris", "Morales",
-    "Murphy", "Cook", "Rogers", "Gutierrez", "Ortiz", "Morgan", "Cooper", "Peterson",
-    "Bailey", "Reed", "Kelly", "Howard", "Ramos", "Kim", "Cox", "Ward",
-    "Richardson", "Watson", "Brooks", "Chavez", "Wood", "James", "Bennett", "Gray",
-    "Mendoza", "Ruiz", "Hughes", "Price", "Alvarez", "Castillo", "Sanders", "Patel",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Sanchez",
+    "Clark",
+    "Ramirez",
+    "Lewis",
+    "Robinson",
+    "Walker",
+    "Young",
+    "Allen",
+    "King",
+    "Wright",
+    "Scott",
+    "Torres",
+    "Nguyen",
+    "Hill",
+    "Flores",
+    "Green",
+    "Adams",
+    "Nelson",
+    "Baker",
+    "Hall",
+    "Rivera",
+    "Campbell",
+    "Mitchell",
+    "Carter",
+    "Roberts",
+    "Gomez",
+    "Phillips",
+    "Evans",
+    "Turner",
+    "Diaz",
+    "Parker",
+    "Cruz",
+    "Edwards",
+    "Collins",
+    "Reyes",
+    "Stewart",
+    "Morris",
+    "Morales",
+    "Murphy",
+    "Cook",
+    "Rogers",
+    "Gutierrez",
+    "Ortiz",
+    "Morgan",
+    "Cooper",
+    "Peterson",
+    "Bailey",
+    "Reed",
+    "Kelly",
+    "Howard",
+    "Ramos",
+    "Kim",
+    "Cox",
+    "Ward",
+    "Richardson",
+    "Watson",
+    "Brooks",
+    "Chavez",
+    "Wood",
+    "James",
+    "Bennett",
+    "Gray",
+    "Mendoza",
+    "Ruiz",
+    "Hughes",
+    "Price",
+    "Alvarez",
+    "Castillo",
+    "Sanders",
+    "Patel",
 ];
 
 const COMPANY_NAMES: &[&str] = &[
-    "Apex Solutions", "Pinnacle Systems", "Meridian Group", "Summit Technologies",
-    "Horizon Partners", "Vanguard Consulting", "Atlas Industries", "Beacon Health",
-    "Catalyst Financial", "Crestview Associates", "Frontier Energy", "Keystone Media",
-    "Lakeview Properties", "Nexus Engineering", "Oakridge Dynamics", "Pacific Trade Co",
-    "Quantum Analytics", "Redwood Capital", "Silverline Logistics", "Trident Manufacturing",
-    "Urban Design Lab", "Valley Medical Center", "Westfield Insurance", "Zenith Marketing",
-    "Clearwater Tech", "Granite Construction", "Harbor Shipping", "Iron Bridge LLC",
-    "Jade Software", "Maple Leaf Services", "Northern Trust Corp", "Olive Branch Legal",
+    "Apex Solutions",
+    "Pinnacle Systems",
+    "Meridian Group",
+    "Summit Technologies",
+    "Horizon Partners",
+    "Vanguard Consulting",
+    "Atlas Industries",
+    "Beacon Health",
+    "Catalyst Financial",
+    "Crestview Associates",
+    "Frontier Energy",
+    "Keystone Media",
+    "Lakeview Properties",
+    "Nexus Engineering",
+    "Oakridge Dynamics",
+    "Pacific Trade Co",
+    "Quantum Analytics",
+    "Redwood Capital",
+    "Silverline Logistics",
+    "Trident Manufacturing",
+    "Urban Design Lab",
+    "Valley Medical Center",
+    "Westfield Insurance",
+    "Zenith Marketing",
+    "Clearwater Tech",
+    "Granite Construction",
+    "Harbor Shipping",
+    "Iron Bridge LLC",
+    "Jade Software",
+    "Maple Leaf Services",
+    "Northern Trust Corp",
+    "Olive Branch Legal",
 ];
 
 const EMAIL_DOMAINS: &[&str] = &[
-    "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
-    "protonmail.com", "aol.com", "mail.com", "zoho.com", "fastmail.com",
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com",
+    "protonmail.com",
+    "aol.com",
+    "mail.com",
+    "zoho.com",
+    "fastmail.com",
 ];
 
 /// Relationship category for a contact.
@@ -157,14 +356,8 @@ impl ContactGenerator {
     }
 
     /// Generate an email address from a first and last name.
-    fn generate_email(
-        first: &str,
-        last: &str,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> String {
-        let domain = EMAIL_DOMAINS
-            .choose(rng)
-            .unwrap_or(&"gmail.com");
+    fn generate_email(first: &str, last: &str, rng: &mut (impl RngCore + CryptoRng)) -> String {
+        let domain = EMAIL_DOMAINS.choose(rng).unwrap_or(&"gmail.com");
         let first_lower = first.to_lowercase();
         let last_lower = last.to_lowercase();
 
@@ -371,7 +564,11 @@ mod tests {
             let entry: ContactEntry = serde_json::from_slice(&bytes).unwrap();
             assert!(!entry.name.is_empty(), "name must never be empty");
             // Name should contain a space (first + last)
-            assert!(entry.name.contains(' '), "name should have first and last: {}", entry.name);
+            assert!(
+                entry.name.contains(' '),
+                "name should have first and last: {}",
+                entry.name
+            );
         }
     }
 
@@ -427,9 +624,16 @@ mod tests {
             );
             // Should also have a domain part after @
             let parts: Vec<&str> = entry.email.split('@').collect();
-            assert_eq!(parts.len(), 2, "entry {i}: email should have exactly one '@'");
+            assert_eq!(
+                parts.len(),
+                2,
+                "entry {i}: email should have exactly one '@'"
+            );
             assert!(!parts[0].is_empty(), "entry {i}: email local part is empty");
-            assert!(parts[1].contains('.'), "entry {i}: email domain missing '.'");
+            assert!(
+                parts[1].contains('.'),
+                "entry {i}: email domain missing '.'"
+            );
         }
     }
 
@@ -464,8 +668,14 @@ mod tests {
         assert!(acquaintance > 0, "should have acquaintance contacts");
 
         // Work should be the most common (30%), Acquaintance (30%), Friend (25%), Family (15%)
-        assert!(work > 200, "work contacts should be substantial: got {work}");
-        assert!(family < friend, "family ({family}) should be less common than friends ({friend})");
+        assert!(
+            work > 200,
+            "work contacts should be substantial: got {work}"
+        );
+        assert!(
+            family < friend,
+            "family ({family}) should be less common than friends ({friend})"
+        );
     }
 
     #[test]

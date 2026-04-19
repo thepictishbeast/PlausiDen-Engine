@@ -43,12 +43,7 @@ fn host_from_url(url: &str) -> String {
 }
 
 /// Generate N DNS query entries.
-fn make_dns(
-    n: usize,
-    profile: &UserProfile,
-    ctx: &GenerationContext,
-    seed: u64,
-) -> Vec<DnsQuery> {
+fn make_dns(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<DnsQuery> {
     let dns_gen = DnsQueryGenerator::new();
     let mut rng = seeded_rng(seed);
     let mut entries = Vec::with_capacity(n);
@@ -100,12 +95,7 @@ fn make_http_timing(
 }
 
 /// Generate N TLS entries (old-style with JA4).
-fn make_tls(
-    n: usize,
-    profile: &UserProfile,
-    ctx: &GenerationContext,
-    seed: u64,
-) -> Vec<TlsEntry> {
+fn make_tls(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<TlsEntry> {
     let tls_gen = TlsGenerator::new();
     let mut rng = seeded_rng(seed);
     let mut entries = Vec::with_capacity(n);
@@ -160,17 +150,16 @@ fn test_http_domains_have_dns_lookups() {
         .collect();
 
     // Check how many HTTP request hosts have a matching DNS lookup
-    let http_hosts: HashSet<String> = http_entries
-        .iter()
-        .map(|e| host_from_url(&e.url))
-        .collect();
+    let http_hosts: HashSet<String> = http_entries.iter().map(|e| host_from_url(&e.url)).collect();
 
     let mut matched = 0u32;
     for host in &http_hosts {
         let bare = host.strip_prefix("www.").unwrap_or(host);
         let has_dns = dns_domains.contains(host)
             || dns_domains.contains(bare)
-            || dns_domains.iter().any(|d: &String| d.contains(bare) || bare.contains(d.as_str()));
+            || dns_domains
+                .iter()
+                .any(|d: &String| d.contains(bare) || bare.contains(d.as_str()));
         if has_dns {
             matched += 1;
         }
@@ -219,10 +208,7 @@ fn test_https_requests_have_tls_handshakes() {
         .collect();
 
     // Check overlap between HTTPS request hosts and TLS SNI domains
-    let https_hosts: HashSet<String> = http_entries
-        .iter()
-        .map(|e| host_from_url(&e.url))
-        .collect();
+    let https_hosts: HashSet<String> = http_entries.iter().map(|e| host_from_url(&e.url)).collect();
 
     let mut matched = 0u32;
     for host in &https_hosts {
@@ -329,7 +315,10 @@ fn test_http_timing_phase_ordering() {
         assert!(t.tcp_connect_ms > 0, "entry {i}: TCP connect is 0");
         assert!(t.tls_handshake_ms > 0, "entry {i}: TLS handshake is 0");
         assert!(t.ttfb_ms > 0, "entry {i}: TTFB is 0");
-        assert!(t.content_transfer_ms > 0, "entry {i}: content transfer is 0");
+        assert!(
+            t.content_transfer_ms > 0,
+            "entry {i}: content transfer is 0"
+        );
     }
 }
 
@@ -482,7 +471,11 @@ fn test_all_timestamps_utc_and_same_window() {
     let all_timestamps: Vec<(&str, i64)> = dns_entries
         .iter()
         .map(|e| ("DNS", e.timestamp.timestamp()))
-        .chain(http_entries.iter().map(|e| ("HTTP", e.timestamp.timestamp())))
+        .chain(
+            http_entries
+                .iter()
+                .map(|e| ("HTTP", e.timestamp.timestamp())),
+        )
         .chain(tls_entries.iter().map(|e| ("TLS", e.timestamp.timestamp())))
         .collect();
 

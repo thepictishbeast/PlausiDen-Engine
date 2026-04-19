@@ -214,8 +214,12 @@ impl RateGovernor {
         Duration::from_millis(0)
     }
 
-    pub fn throttled_count(&self) -> u64 { self.throttled_count }
-    pub fn permitted_count(&self) -> u64 { self.permitted_count }
+    pub fn throttled_count(&self) -> u64 {
+        self.throttled_count
+    }
+    pub fn permitted_count(&self) -> u64 {
+        self.permitted_count
+    }
 }
 
 /// Reason a generation was throttled.
@@ -275,7 +279,9 @@ mod tests {
             category_overrides: HashMap::new(),
         };
         let mut g = RateGovernor::new(policy);
-        for _ in 0..3 { g.record("x"); }
+        for _ in 0..3 {
+            g.record("x");
+        }
         assert_eq!(g.check("x"), Err(ThrottleReason::PerMinute));
     }
 

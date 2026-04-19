@@ -232,12 +232,7 @@ impl DataGenerator for PackageHistoryGenerator {
             - Duration::hours(hours_offset)
             - Duration::minutes(minutes_offset);
 
-        let meta = ArtifactMetadata::new(
-            DataCategory::System,
-            timestamp,
-            timestamp,
-            size,
-        )?;
+        let meta = ArtifactMetadata::new(DataCategory::System, timestamp, timestamp, size)?;
 
         let event = PackageEvent {
             meta,
@@ -354,7 +349,10 @@ mod tests {
                 break;
             }
         }
-        assert!(found_official, "majority of packages should come from official repos");
+        assert!(
+            found_official,
+            "majority of packages should come from official repos"
+        );
     }
 
     #[test]
@@ -371,14 +369,11 @@ mod tests {
             let event: PackageEvent = serde_json::from_slice(&bytes).expect("deserialize ok");
             // Debian package names are lowercase with hyphens, digits, dots, and plus signs.
             assert!(
-                event
-                    .package_name
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase()
-                        || c.is_ascii_digit()
-                        || c == '-'
-                        || c == '+'
-                        || c == '.'),
+                event.package_name.chars().all(|c| c.is_ascii_lowercase()
+                    || c.is_ascii_digit()
+                    || c == '-'
+                    || c == '+'
+                    || c == '.'),
                 "package name '{}' contains invalid characters for Debian naming",
                 event.package_name
             );
@@ -418,12 +413,8 @@ mod tests {
         );
         let mut rng1 = seeded_rng(7777);
         let mut rng2 = seeded_rng(7777);
-        let a1 = generator
-            .generate(&profile, &ctx, &mut rng1)
-            .expect("ok");
-        let a2 = generator
-            .generate(&profile, &ctx, &mut rng2)
-            .expect("ok");
+        let a1 = generator.generate(&profile, &ctx, &mut rng1).expect("ok");
+        let a2 = generator.generate(&profile, &ctx, &mut rng2).expect("ok");
         // Compare via deserialized fields (UUID is non-deterministic).
         let e1: PackageEvent =
             serde_json::from_slice(&a1.to_bytes().expect("serialize")).expect("deser");

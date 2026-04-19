@@ -62,14 +62,12 @@
 //! plug in later.
 
 use engine_browser::history::{HistoryEntry, HistoryGenerator, TransitionType};
-use engine_core::distinguisher::{
-    score, FeatureVector, NearestNeighbourDistinguisher,
-};
+use engine_core::distinguisher::{FeatureVector, NearestNeighbourDistinguisher, score};
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use rand::distributions::{Distribution, Uniform};
 use rand::RngCore;
+use rand::distributions::{Distribution, Uniform};
 
 const N_PER_SIDE: usize = 500;
 
@@ -79,12 +77,8 @@ fn features_of(entry: &HistoryEntry) -> FeatureVector {
     let visit_count = entry.visit_count as f64;
     let referrer_flag = if entry.referrer.is_some() { 1.0 } else { 0.0 };
     let transition_bucket = match entry.transition {
-        TransitionType::Link
-        | TransitionType::SearchResult
-        | TransitionType::Redirect => 1.0,
-        TransitionType::Typed
-        | TransitionType::Bookmark
-        | TransitionType::Reload => 0.0,
+        TransitionType::Link | TransitionType::SearchResult | TransitionType::Redirect => 1.0,
+        TransitionType::Typed | TransitionType::Bookmark | TransitionType::Reload => 0.0,
     };
     FeatureVector::new(vec![
         (url_len + 1.0).ln(),
@@ -108,8 +102,7 @@ fn generate_synthetic(n: usize, seed: u64) -> Vec<HistoryEntry> {
             .generate(&profile, &ctx, &mut rng)
             .expect("synthetic history entry generation");
         let bytes = artifact.to_bytes().expect("serialize");
-        let entry: HistoryEntry =
-            serde_json::from_slice(&bytes).expect("roundtrip deserialize");
+        let entry: HistoryEntry = serde_json::from_slice(&bytes).expect("roundtrip deserialize");
         // Push URL so the next entry can chain off it, same as the
         // existing adversarial-test harness.
         generator.recent_urls.push(entry.url.clone());
@@ -181,8 +174,7 @@ fn sample_baseline_entry(rng: &mut impl RngCore) -> HistoryEntry {
     };
 
     let now = Utc::now();
-    let visit_time =
-        now - Duration::seconds(Uniform::new_inclusive(0i64, 600).sample(rng));
+    let visit_time = now - Duration::seconds(Uniform::new_inclusive(0i64, 600).sample(rng));
     // ArtifactMetadata requires first_seen <= last_seen.
     let meta = ArtifactMetadata::new(DataCategory::BrowserActivity, visit_time, visit_time, 128)
         .expect("baseline metadata");
@@ -279,8 +271,7 @@ fn generator_vs_baseline_pending_real_corpus() {
     let synth = generate_synthetic(N_PER_SIDE, 0xDEAD_BEEF);
 
     let real_features: Vec<FeatureVector> = real.iter().map(features_of).collect();
-    let synth_features: Vec<FeatureVector> =
-        synth.iter().map(features_of).collect();
+    let synth_features: Vec<FeatureVector> = synth.iter().map(features_of).collect();
 
     let (ref_real, test_real) = split_half(real_features);
     let (ref_synth, test_synth) = split_half(synth_features);
@@ -307,14 +298,10 @@ fn baseline_is_self_indistinguishable_sanity_check() {
     let a_features: Vec<FeatureVector> = a.iter().map(features_of).collect();
     let b_features: Vec<FeatureVector> = b.iter().map(features_of).collect();
 
-    let ref_a: Vec<FeatureVector> =
-        a_features.iter().take(N_PER_SIDE / 2).cloned().collect();
-    let ref_b: Vec<FeatureVector> =
-        b_features.iter().take(N_PER_SIDE / 2).cloned().collect();
-    let test_a: Vec<FeatureVector> =
-        a_features.iter().skip(N_PER_SIDE / 2).cloned().collect();
-    let test_b: Vec<FeatureVector> =
-        b_features.iter().skip(N_PER_SIDE / 2).cloned().collect();
+    let ref_a: Vec<FeatureVector> = a_features.iter().take(N_PER_SIDE / 2).cloned().collect();
+    let ref_b: Vec<FeatureVector> = b_features.iter().take(N_PER_SIDE / 2).cloned().collect();
+    let test_a: Vec<FeatureVector> = a_features.iter().skip(N_PER_SIDE / 2).cloned().collect();
+    let test_b: Vec<FeatureVector> = b_features.iter().skip(N_PER_SIDE / 2).cloned().collect();
 
     let distinguisher = NearestNeighbourDistinguisher::new(ref_a, ref_b);
     let report = score(&distinguisher, &test_a, &test_b);

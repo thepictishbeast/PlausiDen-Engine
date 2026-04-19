@@ -24,11 +24,15 @@ pub struct SearchEntry {
 }
 
 impl Artifact for SearchEntry {
-    fn metadata(&self) -> &ArtifactMetadata { &self.meta }
+    fn metadata(&self) -> &ArtifactMetadata {
+        &self.meta
+    }
     fn validate_plausibility(&self) -> Result<()> {
         self.meta.validate_timestamps()?;
         if self.query.is_empty() {
-            return Err(EngineError::ImplausibleArtifact { reason: "empty search query".to_string() });
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "empty search query".to_string(),
+            });
         }
         Ok(())
     }
@@ -39,13 +43,47 @@ impl Artifact for SearchEntry {
 
 fn queries_for_category(category: &InterestCategory) -> &'static [&'static str] {
     match category {
-        InterestCategory::News => &["latest news today", "breaking news", "world news updates", "election results 2026", "stock market today"],
-        InterestCategory::Technology => &["rust programming tutorial", "best linux distro 2026", "how to setup docker", "python vs rust performance", "git merge vs rebase"],
-        InterestCategory::Shopping => &["best wireless headphones 2026", "running shoes sale", "laptop under 1000", "gift ideas birthday"],
-        InterestCategory::Entertainment => &["new movies this week", "best tv shows streaming", "video game reviews", "podcast recommendations"],
-        InterestCategory::Health => &["healthy meal prep ideas", "home workout routine", "sleep improvement tips"],
-        InterestCategory::Finance => &["how to start investing", "savings account interest rates", "budget spreadsheet template"],
-        InterestCategory::Academic => &["research methodology pdf", "peer reviewed journals free", "academic citation generator"],
+        InterestCategory::News => &[
+            "latest news today",
+            "breaking news",
+            "world news updates",
+            "election results 2026",
+            "stock market today",
+        ],
+        InterestCategory::Technology => &[
+            "rust programming tutorial",
+            "best linux distro 2026",
+            "how to setup docker",
+            "python vs rust performance",
+            "git merge vs rebase",
+        ],
+        InterestCategory::Shopping => &[
+            "best wireless headphones 2026",
+            "running shoes sale",
+            "laptop under 1000",
+            "gift ideas birthday",
+        ],
+        InterestCategory::Entertainment => &[
+            "new movies this week",
+            "best tv shows streaming",
+            "video game reviews",
+            "podcast recommendations",
+        ],
+        InterestCategory::Health => &[
+            "healthy meal prep ideas",
+            "home workout routine",
+            "sleep improvement tips",
+        ],
+        InterestCategory::Finance => &[
+            "how to start investing",
+            "savings account interest rates",
+            "budget spreadsheet template",
+        ],
+        InterestCategory::Academic => &[
+            "research methodology pdf",
+            "peer reviewed journals free",
+            "academic citation generator",
+        ],
         _ => &["how to", "best way to", "what is", "reviews for"],
     }
 }
@@ -54,10 +92,14 @@ fn queries_for_category(category: &InterestCategory) -> &'static [&'static str] 
 pub struct SearchGenerator;
 
 impl SearchGenerator {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 impl Default for SearchGenerator {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DataGenerator for SearchGenerator {
@@ -67,9 +109,14 @@ impl DataGenerator for SearchGenerator {
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
-        let category = profile.interests.choose(rng).cloned().unwrap_or(InterestCategory::News);
+        let category = profile
+            .interests
+            .choose(rng)
+            .cloned()
+            .unwrap_or(InterestCategory::News);
         let queries = queries_for_category(&category);
-        let query = queries.choose(rng)
+        let query = queries
+            .choose(rng)
             .ok_or_else(|| EngineError::InvalidContext("no queries for category".to_string()))?;
 
         let engines = ["google.com", "duckduckgo.com", "bing.com"];
@@ -80,20 +127,30 @@ impl DataGenerator for SearchGenerator {
         let search_time = context.now - Duration::seconds(jitter);
 
         let meta = ArtifactMetadata::new(
-            DataCategory::BrowserActivity, search_time, search_time,
+            DataCategory::BrowserActivity,
+            search_time,
+            search_time,
             (query.len() + search_url.len()) as u64 + 64,
         )?;
 
         let entry = SearchEntry {
-            meta, query: query.to_string(), search_engine: engine.to_string(),
-            search_url, search_time, category,
+            meta,
+            query: query.to_string(),
+            search_engine: engine.to_string(),
+            search_url,
+            search_time,
+            category,
         };
         entry.validate_plausibility()?;
         Ok(Box::new(entry))
     }
 
-    fn category(&self) -> DataCategory { DataCategory::BrowserActivity }
-    fn forensic_weight(&self) -> u32 { 90 }
+    fn category(&self) -> DataCategory {
+        DataCategory::BrowserActivity
+    }
+    fn forensic_weight(&self) -> u32 {
+        90
+    }
 }
 
 #[cfg(test)]

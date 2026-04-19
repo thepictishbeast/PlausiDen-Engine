@@ -30,12 +30,7 @@ fn shared_context() -> GenerationContext {
 }
 
 /// Generate N log entries.
-fn make_logs(
-    n: usize,
-    profile: &UserProfile,
-    ctx: &GenerationContext,
-    seed: u64,
-) -> Vec<LogEntry> {
+fn make_logs(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<LogEntry> {
     let log_gen = LogGenerator::new();
     let mut rng = seeded_rng(seed);
     let mut entries = Vec::with_capacity(n);
@@ -148,8 +143,7 @@ fn test_log_facilities_from_known_set() {
     let profile = shared_profile();
     let ctx = shared_context();
 
-    let known_facilities: HashSet<&str> =
-        ["kern", "auth", "daemon", "cron"].into_iter().collect();
+    let known_facilities: HashSet<&str> = ["kern", "auth", "daemon", "cron"].into_iter().collect();
 
     let entries = make_logs(1000, &profile, &ctx, 77);
 
@@ -426,8 +420,7 @@ fn test_500_entry_stress_all_generators() {
     let ctx = shared_context();
     let now = ctx.now;
 
-    let known_facilities: HashSet<&str> =
-        ["kern", "auth", "daemon", "cron"].into_iter().collect();
+    let known_facilities: HashSet<&str> = ["kern", "auth", "daemon", "cron"].into_iter().collect();
     let known_signals: HashSet<&str> = [
         "SIGSEGV", "SIGABRT", "SIGFPE", "SIGILL", "SIGBUS", "SIGSYS", "SIGTRAP", "SIGXCPU",
         "SIGXFSZ",

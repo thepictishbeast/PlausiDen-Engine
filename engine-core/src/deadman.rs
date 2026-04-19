@@ -190,8 +190,8 @@ mod tests {
 
     fn sample() -> DeadmanConfig {
         DeadmanConfig {
-            dead_seconds: 86_400,       // 1 day
-            warning_seconds: 3_600,     // 1 hour
+            dead_seconds: 86_400,   // 1 day
+            warning_seconds: 3_600, // 1 hour
             action: TriggerAction::AlertContacts {
                 channels: vec!["signal://lawyer".into()],
             },
@@ -246,7 +246,10 @@ mod tests {
         let mut cfg = sample();
         cfg.arm(0);
         // Advance near expiry
-        assert!(matches!(evaluate(&cfg, 86_000), DeadmanStatus::Warning { .. }));
+        assert!(matches!(
+            evaluate(&cfg, 86_000),
+            DeadmanStatus::Warning { .. }
+        ));
         // Check in
         cfg.check_in(86_000);
         // Now fresh again
@@ -258,7 +261,10 @@ mod tests {
         let mut cfg = sample();
         cfg.arm(0);
         // Past expiry, would normally fire
-        assert!(matches!(evaluate(&cfg, 100_000), DeadmanStatus::Fire { .. }));
+        assert!(matches!(
+            evaluate(&cfg, 100_000),
+            DeadmanStatus::Fire { .. }
+        ));
         cfg.disarm();
         assert_eq!(evaluate(&cfg, 100_000), DeadmanStatus::Disarmed);
     }
@@ -316,7 +322,10 @@ mod tests {
         // u64::MAX (post-as-cast, after saturating_sub) or be
         // Fire without panicking.
         let result = std::panic::catch_unwind(|| evaluate(&cfg, 1_000_000_000));
-        assert!(result.is_ok(), "evaluate must not panic on i64::MIN checkin");
+        assert!(
+            result.is_ok(),
+            "evaluate must not panic on i64::MIN checkin"
+        );
         // And whatever status it returns, it should not be Disarmed
         // (armed is true) nor Fresh (elapsed is huge).
         match result.unwrap() {
@@ -336,12 +345,19 @@ mod tests {
     fn composite_action_preserved_in_fire() {
         let mut cfg = sample();
         cfg.action = TriggerAction::Composite(vec![
-            TriggerAction::AlertContacts { channels: vec!["a".into()] },
-            TriggerAction::WipePaths { paths: vec![PathBuf::from("/tmp/evidence")] },
+            TriggerAction::AlertContacts {
+                channels: vec!["a".into()],
+            },
+            TriggerAction::WipePaths {
+                paths: vec![PathBuf::from("/tmp/evidence")],
+            },
         ]);
         cfg.arm(0);
         match evaluate(&cfg, 100_000) {
-            DeadmanStatus::Fire { action: TriggerAction::Composite(inner), .. } => {
+            DeadmanStatus::Fire {
+                action: TriggerAction::Composite(inner),
+                ..
+            } => {
                 assert_eq!(inner.len(), 2);
             }
             other => panic!("expected composite Fire, got {other:?}"),

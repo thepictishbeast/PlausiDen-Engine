@@ -466,7 +466,10 @@ mod tests {
         assert!(seen.contains("PinchZoomIn"), "missing PinchZoomIn");
         assert!(seen.contains("PinchZoomOut"), "missing PinchZoomOut");
         assert!(seen.contains("TwoFingerRotate"), "missing TwoFingerRotate");
-        assert!(seen.contains("ThreeFingerSwipe"), "missing ThreeFingerSwipe");
+        assert!(
+            seen.contains("ThreeFingerSwipe"),
+            "missing ThreeFingerSwipe"
+        );
         assert!(seen.contains("EdgeSwipe"), "missing EdgeSwipe");
         assert!(seen.contains("PalmRejection"), "missing PalmRejection");
     }
@@ -489,13 +492,23 @@ mod tests {
                     assert_eq!(e.touch_points.len(), 2, "rotation must have 2 points");
                 }
                 GestureType::ThreeFingerSwipe => {
-                    assert_eq!(e.touch_points.len(), 3, "three-finger swipe must have 3 points");
+                    assert_eq!(
+                        e.touch_points.len(),
+                        3,
+                        "three-finger swipe must have 3 points"
+                    );
                 }
                 GestureType::EdgeSwipe => {
-                    assert!(!e.touch_points.is_empty(), "edge swipe must have >= 1 point");
+                    assert!(
+                        !e.touch_points.is_empty(),
+                        "edge swipe must have >= 1 point"
+                    );
                 }
                 GestureType::PalmRejection => {
-                    assert!(e.touch_points.len() >= 3, "palm rejection must have >= 3 points");
+                    assert!(
+                        e.touch_points.len() >= 3,
+                        "palm rejection must have >= 3 points"
+                    );
                 }
             }
         }

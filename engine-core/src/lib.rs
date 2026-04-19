@@ -15,12 +15,12 @@
 pub mod artifact;
 pub mod config;
 pub mod corpus;
+pub mod deadman;
 pub mod dedup;
 pub mod distinguisher;
 pub mod distribution;
-pub mod entropy;
-pub mod deadman;
 pub mod duress;
+pub mod entropy;
 pub mod entropy_analysis;
 pub mod erasure;
 pub mod error;

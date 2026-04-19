@@ -40,16 +40,56 @@ struct CarrierInfo {
 
 /// US carrier codes following real-world FCC allocations.
 const US_CARRIERS: &[CarrierInfo] = &[
-    CarrierInfo { mcc: 310, mnc: 410, name: "AT&T" },
-    CarrierInfo { mcc: 311, mnc: 480, name: "Verizon" },
-    CarrierInfo { mcc: 310, mnc: 260, name: "T-Mobile" },
-    CarrierInfo { mcc: 310, mnc: 120, name: "Sprint" },
-    CarrierInfo { mcc: 311, mnc: 580, name: "US Cellular" },
-    CarrierInfo { mcc: 310, mnc: 150, name: "Cricket" },
-    CarrierInfo { mcc: 310, mnc: 030, name: "AT&T (Centennial)" },
-    CarrierInfo { mcc: 311, mnc: 490, name: "Verizon (LTE)" },
-    CarrierInfo { mcc: 310, mnc: 160, name: "T-Mobile (Metro)" },
-    CarrierInfo { mcc: 310, mnc: 770, name: "i-wireless" },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 410,
+        name: "AT&T",
+    },
+    CarrierInfo {
+        mcc: 311,
+        mnc: 480,
+        name: "Verizon",
+    },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 260,
+        name: "T-Mobile",
+    },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 120,
+        name: "Sprint",
+    },
+    CarrierInfo {
+        mcc: 311,
+        mnc: 580,
+        name: "US Cellular",
+    },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 150,
+        name: "Cricket",
+    },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 030,
+        name: "AT&T (Centennial)",
+    },
+    CarrierInfo {
+        mcc: 311,
+        mnc: 490,
+        name: "Verizon (LTE)",
+    },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 160,
+        name: "T-Mobile (Metro)",
+    },
+    CarrierInfo {
+        mcc: 310,
+        mnc: 770,
+        name: "i-wireless",
+    },
 ];
 
 /// Network technology types weighted by current deployment prevalence.
@@ -93,7 +133,10 @@ impl Artifact for CellTowerLog {
         // MCC must be valid US code
         if self.mcc != 310 && self.mcc != 311 {
             return Err(EngineError::ImplausibleArtifact {
-                reason: format!("MCC {} is not a valid US mobile country code (310/311)", self.mcc),
+                reason: format!(
+                    "MCC {} is not a valid US mobile country code (310/311)",
+                    self.mcc
+                ),
             });
         }
 
@@ -179,9 +222,7 @@ impl CellTowerGenerator {
     /// Select a carrier and lock it for this persona.
     fn ensure_carrier(&mut self, rng: &mut (impl RngCore + CryptoRng)) {
         if self.carrier_mcc.is_none() {
-            let carrier = US_CARRIERS
-                .choose(rng)
-                .unwrap_or(&US_CARRIERS[0]);
+            let carrier = US_CARRIERS.choose(rng).unwrap_or(&US_CARRIERS[0]);
             self.carrier_mcc = Some(carrier.mcc);
             self.carrier_mnc = Some(carrier.mnc);
         }
@@ -198,10 +239,7 @@ impl CellTowerGenerator {
     }
 
     /// Generate signal strength with small drift from previous value.
-    fn drift_signal(
-        last: Option<i32>,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> i32 {
+    fn drift_signal(last: Option<i32>, rng: &mut (impl RngCore + CryptoRng)) -> i32 {
         let base = last.unwrap_or(-75);
         let drift = Uniform::new_inclusive(-5i32, 5).sample(rng);
         (base + drift).clamp(-120, -44)
@@ -236,10 +274,7 @@ impl CellTowerGenerator {
             let signal = Self::drift_signal(self.last_signal, rng);
             self.last_signal = Some(signal);
 
-            let net_type = NETWORK_TYPES
-                .choose(rng)
-                .copied()
-                .unwrap_or("LTE");
+            let net_type = NETWORK_TYPES.choose(rng).copied().unwrap_or("LTE");
 
             // Time step: cell logs are less frequent than GPS (30s - 5min)
             let dt_secs = Uniform::new_inclusive(30i64, 300).sample(rng);
@@ -253,12 +288,7 @@ impl CellTowerGenerator {
 
             let _ = profile; // Used indirectly via context timing
 
-            let meta = ArtifactMetadata::new(
-                DataCategory::Location,
-                timestamp,
-                timestamp,
-                256,
-            )?;
+            let meta = ArtifactMetadata::new(DataCategory::Location, timestamp, timestamp, 256)?;
 
             let entry = CellTowerLog {
                 meta,
@@ -293,9 +323,7 @@ impl DataGenerator for CellTowerGenerator {
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
-        let carrier = US_CARRIERS
-            .choose(rng)
-            .unwrap_or(&US_CARRIERS[0]);
+        let carrier = US_CARRIERS.choose(rng).unwrap_or(&US_CARRIERS[0]);
 
         let mcc = self.carrier_mcc.unwrap_or(carrier.mcc);
         let mnc = self.carrier_mnc.unwrap_or(carrier.mnc);
@@ -309,22 +337,14 @@ impl DataGenerator for CellTowerGenerator {
 
         let signal = Self::drift_signal(self.last_signal, rng);
 
-        let net_type = NETWORK_TYPES
-            .choose(rng)
-            .copied()
-            .unwrap_or("LTE");
+        let net_type = NETWORK_TYPES.choose(rng).copied().unwrap_or("LTE");
 
         let duration = Uniform::new_inclusive(60u64, 3600).sample(rng);
 
         let jitter = Uniform::new_inclusive(0i64, 600).sample(rng);
         let timestamp = context.now - Duration::seconds(jitter);
 
-        let meta = ArtifactMetadata::new(
-            DataCategory::Location,
-            timestamp,
-            timestamp,
-            256,
-        )?;
+        let meta = ArtifactMetadata::new(DataCategory::Location, timestamp, timestamp, 256)?;
 
         let entry = CellTowerLog {
             meta,

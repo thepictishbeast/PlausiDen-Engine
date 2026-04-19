@@ -121,10 +121,7 @@ impl Artifact for MouseEntry {
             for pt in &evt.trajectory {
                 if pt.x > self.screen_width || pt.y > self.screen_height {
                     return Err(EngineError::ImplausibleArtifact {
-                        reason: format!(
-                            "trajectory point out of bounds: ({}, {})",
-                            pt.x, pt.y
-                        ),
+                        reason: format!("trajectory point out of bounds: ({}, {})", pt.x, pt.y),
                     });
                 }
             }
@@ -198,12 +195,8 @@ fn bezier_trajectory(
         let inv = 1.0 - t;
 
         // Quadratic Bezier: B(t) = (1-t)^2 * P0 + 2*(1-t)*t * C + t^2 * P1
-        let bx = inv * inv * start_x as f64
-            + 2.0 * inv * t * ctrl_x
-            + t * t * end_x as f64;
-        let by = inv * inv * start_y as f64
-            + 2.0 * inv * t * ctrl_y
-            + t * t * end_y as f64;
+        let bx = inv * inv * start_x as f64 + 2.0 * inv * t * ctrl_x + t * t * end_x as f64;
+        let by = inv * inv * start_y as f64 + 2.0 * inv * t * ctrl_y + t * t * end_y as f64;
 
         let px = (bx.round() as u32).min(screen_w);
         let py = (by.round() as u32).min(screen_h);
@@ -238,8 +231,9 @@ fn make_event(
     match event_type {
         MouseEventType::LeftClick => {
             let duration = Uniform::new_inclusive(80u64, 200).sample(rng);
-            let trajectory =
-                bezier_trajectory(prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng);
+            let trajectory = bezier_trajectory(
+                prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng,
+            );
             MouseEvent {
                 event_type,
                 x: dest_x,
@@ -254,8 +248,9 @@ fn make_event(
         }
         MouseEventType::RightClick => {
             let duration = Uniform::new_inclusive(80u64, 200).sample(rng);
-            let trajectory =
-                bezier_trajectory(prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng);
+            let trajectory = bezier_trajectory(
+                prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng,
+            );
             MouseEvent {
                 event_type,
                 x: dest_x,
@@ -272,8 +267,9 @@ fn make_event(
             let single = Uniform::new_inclusive(60u64, 120).sample(rng);
             let gap = Uniform::new_inclusive(50u64, 150).sample(rng);
             let duration = single * 2 + gap;
-            let trajectory =
-                bezier_trajectory(prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng);
+            let trajectory = bezier_trajectory(
+                prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng,
+            );
             MouseEvent {
                 event_type,
                 x: dest_x,
@@ -288,8 +284,9 @@ fn make_event(
         }
         MouseEventType::MiddleClick => {
             let duration = Uniform::new_inclusive(80u64, 180).sample(rng);
-            let trajectory =
-                bezier_trajectory(prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng);
+            let trajectory = bezier_trajectory(
+                prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng,
+            );
             MouseEvent {
                 event_type,
                 x: dest_x,
@@ -321,8 +318,9 @@ fn make_event(
         }
         MouseEventType::Hover => {
             let duration = Uniform::new_inclusive(200u64, 600).sample(rng);
-            let trajectory =
-                bezier_trajectory(prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng);
+            let trajectory = bezier_trajectory(
+                prev_x, prev_y, dest_x, dest_y, duration, screen_w, screen_h, rng,
+            );
             MouseEvent {
                 event_type,
                 x: dest_x,

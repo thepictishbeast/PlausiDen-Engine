@@ -86,9 +86,7 @@ impl Artifact for EngagementSnapshot {
         }
         // Following should not vastly exceed followers for a real account
         // (spam-follow ratio > 50:1 is implausible for normal users).
-        if self.audience.followers > 0
-            && self.audience.following > self.audience.followers * 50
-        {
+        if self.audience.followers > 0 && self.audience.following > self.audience.followers * 50 {
             return Err(EngineError::ImplausibleArtifact {
                 reason: "following-to-follower ratio implausibly high".into(),
             });

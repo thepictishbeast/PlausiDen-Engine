@@ -16,7 +16,9 @@ pub fn shannon_entropy(data: &[u8]) -> f64 {
     let len = data.len() as f64;
     let mut h = 0.0;
     for c in counts.iter() {
-        if *c == 0 { continue; }
+        if *c == 0 {
+            continue;
+        }
         let p = *c as f64 / len;
         h -= p * p.log2();
     }
@@ -35,7 +37,8 @@ pub fn byte_frequency(data: &[u8]) -> HashMap<u8, f64> {
     for &b in data {
         *counts.entry(b).or_insert(0u64) += 1;
     }
-    counts.into_iter()
+    counts
+        .into_iter()
         .map(|(b, c)| (b, c as f64 / len))
         .collect()
 }
@@ -71,16 +74,30 @@ pub fn analyze(data: &[u8]) -> EntropyReport {
     let entropy_ratio = if length == 0 { 0.0 } else { entropy_bits / 8.0 };
 
     let ascii = data.iter().filter(|b| **b < 128).count();
-    let printable = data.iter()
+    let printable = data
+        .iter()
         .filter(|b| (**b >= 0x20 && **b < 0x7f) || **b == b'\n' || **b == b'\r' || **b == b'\t')
         .count();
-    let whitespace = data.iter()
+    let whitespace = data
+        .iter()
         .filter(|b| **b == b' ' || **b == b'\n' || **b == b'\t')
         .count();
 
-    let ascii_ratio = if length == 0 { 0.0 } else { ascii as f64 / length as f64 };
-    let printable_ratio = if length == 0 { 0.0 } else { printable as f64 / length as f64 };
-    let whitespace_ratio = if length == 0 { 0.0 } else { whitespace as f64 / length as f64 };
+    let ascii_ratio = if length == 0 {
+        0.0
+    } else {
+        ascii as f64 / length as f64
+    };
+    let printable_ratio = if length == 0 {
+        0.0
+    } else {
+        printable as f64 / length as f64
+    };
+    let whitespace_ratio = if length == 0 {
+        0.0
+    } else {
+        whitespace as f64 / length as f64
+    };
 
     let assessment = if entropy_bits < 2.0 {
         Assessment::TooLow
@@ -344,7 +361,9 @@ mod tests {
         let blob: Vec<u8> = (0u8..=255).collect();
         data.extend_from_slice(&blob);
         data.extend_from_slice(
-            b" and more text afterwards so we cross another block boundary ".repeat(10).as_slice(),
+            b" and more text afterwards so we cross another block boundary "
+                .repeat(10)
+                .as_slice(),
         );
         let spread = block_entropy_spread(&data, 128);
         assert!(
@@ -399,7 +418,10 @@ mod tests {
         // exactly expected count).
         let counter: Vec<u8> = (0u8..=255).collect();
         let chi = chi_square_uniform(&counter);
-        assert!(chi.abs() < 1e-9, "chi-square on exact uniform should be 0, got {chi}");
+        assert!(
+            chi.abs() < 1e-9,
+            "chi-square on exact uniform should be 0, got {chi}"
+        );
     }
 
     #[test]

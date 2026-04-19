@@ -18,33 +18,135 @@ use serde::{Deserialize, Serialize};
 // ---- Name and domain pools ----
 
 const FIRST_NAMES: &[&str] = &[
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
-    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
-    "Thomas", "Sarah", "Charles", "Karen", "Daniel", "Nancy", "Matthew", "Betty",
-    "Anthony", "Margaret", "Mark", "Sandra", "Paul", "Emily", "Joshua", "Donna",
-    "Kevin", "Michelle", "Brian", "Amanda", "George", "Melissa", "Timothy", "Deborah",
-    "Jason", "Laura", "Ryan", "Cynthia", "Jacob", "Amy", "Nicholas", "Angela",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Charles",
+    "Karen",
+    "Daniel",
+    "Nancy",
+    "Matthew",
+    "Betty",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Paul",
+    "Emily",
+    "Joshua",
+    "Donna",
+    "Kevin",
+    "Michelle",
+    "Brian",
+    "Amanda",
+    "George",
+    "Melissa",
+    "Timothy",
+    "Deborah",
+    "Jason",
+    "Laura",
+    "Ryan",
+    "Cynthia",
+    "Jacob",
+    "Amy",
+    "Nicholas",
+    "Angela",
 ];
 
 const LAST_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Wilson", "Anderson", "Thomas",
-    "Taylor", "Moore", "Jackson", "Martin", "Lee", "Thompson", "White", "Harris",
-    "Clark", "Lewis", "Robinson", "Walker", "Young", "Allen", "King", "Wright",
-    "Scott", "Nguyen", "Hill", "Green", "Adams", "Nelson", "Baker", "Hall",
-    "Rivera", "Campbell", "Mitchell", "Carter", "Roberts", "Phillips", "Evans", "Turner",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Thompson",
+    "White",
+    "Harris",
+    "Clark",
+    "Lewis",
+    "Robinson",
+    "Walker",
+    "Young",
+    "Allen",
+    "King",
+    "Wright",
+    "Scott",
+    "Nguyen",
+    "Hill",
+    "Green",
+    "Adams",
+    "Nelson",
+    "Baker",
+    "Hall",
+    "Rivera",
+    "Campbell",
+    "Mitchell",
+    "Carter",
+    "Roberts",
+    "Phillips",
+    "Evans",
+    "Turner",
 ];
 
 const EMAIL_DOMAINS: &[&str] = &[
-    "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
-    "protonmail.com", "aol.com", "mail.com", "zoho.com", "fastmail.com",
-    "live.com", "msn.com", "ymail.com", "inbox.com", "pm.me",
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com",
+    "protonmail.com",
+    "aol.com",
+    "mail.com",
+    "zoho.com",
+    "fastmail.com",
+    "live.com",
+    "msn.com",
+    "ymail.com",
+    "inbox.com",
+    "pm.me",
 ];
 
 const MAIL_SERVER_DOMAINS: &[&str] = &[
-    "mail.google.com", "mx.outlook.com", "smtp.yahoo.com", "mail.icloud.com",
-    "smtp.fastmail.com", "mail.protonmail.ch", "mx.zoho.com", "smtp.aol.com",
-    "mail.gmx.com", "mx.mail.com",
+    "mail.google.com",
+    "mx.outlook.com",
+    "smtp.yahoo.com",
+    "mail.icloud.com",
+    "smtp.fastmail.com",
+    "mail.protonmail.ch",
+    "mx.zoho.com",
+    "smtp.aol.com",
+    "mail.gmx.com",
+    "mx.mail.com",
 ];
 
 const SUBJECT_TEMPLATES: &[&str] = &[
@@ -198,7 +300,9 @@ impl EmailHeaderGenerator {
     }
 
     /// Generate a display name and email address pair: "First Last <first.last@domain>".
-    fn generate_address(rng: &mut (impl RngCore + CryptoRng)) -> core::result::Result<String, EngineError> {
+    fn generate_address(
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> core::result::Result<String, EngineError> {
         let first = FIRST_NAMES
             .choose(rng)
             .ok_or_else(|| EngineError::InvalidContext("empty first name pool".to_string()))?;
@@ -226,10 +330,12 @@ impl EmailHeaderGenerator {
     }
 
     /// Generate a subject line, filling in any template placeholders.
-    fn generate_subject(rng: &mut (impl RngCore + CryptoRng)) -> core::result::Result<String, EngineError> {
-        let template = SUBJECT_TEMPLATES
-            .choose(rng)
-            .ok_or_else(|| EngineError::InvalidContext("empty subject template pool".to_string()))?;
+    fn generate_subject(
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> core::result::Result<String, EngineError> {
+        let template = SUBJECT_TEMPLATES.choose(rng).ok_or_else(|| {
+            EngineError::InvalidContext("empty subject template pool".to_string())
+        })?;
 
         // Fill in {time} placeholder if present.
         let subject = if template.contains("{time}") {

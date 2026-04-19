@@ -83,26 +83,97 @@ impl Artifact for AutofillEntry {
 
 /// Common first names for autofill generation.
 const FIRST_NAMES: &[&str] = &[
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
-    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
-    "Thomas", "Sarah", "Christopher", "Karen", "Daniel", "Lisa", "Matthew", "Nancy",
-    "Anthony", "Betty", "Mark", "Margaret", "Donald", "Sandra", "Steven", "Ashley",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Christopher",
+    "Karen",
+    "Daniel",
+    "Lisa",
+    "Matthew",
+    "Nancy",
+    "Anthony",
+    "Betty",
+    "Mark",
+    "Margaret",
+    "Donald",
+    "Sandra",
+    "Steven",
+    "Ashley",
 ];
 
 /// Common last names for autofill generation.
 const LAST_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
-    "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
-    "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Sanchez",
+    "Clark",
+    "Ramirez",
+    "Lewis",
+    "Robinson",
+    "Walker",
 ];
 
 /// US street names for address generation.
 const STREET_NAMES: &[&str] = &[
-    "Main St", "Oak Ave", "Maple Dr", "Cedar Ln", "Elm St", "Park Ave",
-    "Washington Blvd", "Pine St", "Lake Rd", "Hill Dr", "Church St",
-    "Broad St", "Walnut St", "Chestnut Ave", "Spring St", "Highland Ave",
-    "Meadow Ln", "Forest Dr", "River Rd", "Sunset Blvd",
+    "Main St",
+    "Oak Ave",
+    "Maple Dr",
+    "Cedar Ln",
+    "Elm St",
+    "Park Ave",
+    "Washington Blvd",
+    "Pine St",
+    "Lake Rd",
+    "Hill Dr",
+    "Church St",
+    "Broad St",
+    "Walnut St",
+    "Chestnut Ave",
+    "Spring St",
+    "Highland Ave",
+    "Meadow Ln",
+    "Forest Dr",
+    "River Rd",
+    "Sunset Blvd",
 ];
 
 /// US cities with state abbreviation and zip code prefix.
@@ -141,8 +212,14 @@ const TEST_CARD_NUMBERS: &[&str] = &[
 
 /// Email domains for address generation.
 const EMAIL_DOMAINS: &[&str] = &[
-    "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
-    "protonmail.com", "aol.com", "mail.com",
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com",
+    "protonmail.com",
+    "aol.com",
+    "mail.com",
 ];
 
 /// Autofill field types with their HTML field name and a tag for generation logic.
@@ -212,32 +289,13 @@ impl AutofillGenerator {
     }
 
     /// Generate a plausible value for the given field type.
-    fn generate_field_value(
-        ft: FieldType,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> String {
+    fn generate_field_value(ft: FieldType, rng: &mut (impl RngCore + CryptoRng)) -> String {
         match ft {
-            FieldType::FirstName => {
-                FIRST_NAMES
-                    .choose(rng)
-                    .unwrap_or(&"John")
-                    .to_string()
-            }
-            FieldType::LastName => {
-                LAST_NAMES
-                    .choose(rng)
-                    .unwrap_or(&"Smith")
-                    .to_string()
-            }
+            FieldType::FirstName => FIRST_NAMES.choose(rng).unwrap_or(&"John").to_string(),
+            FieldType::LastName => LAST_NAMES.choose(rng).unwrap_or(&"Smith").to_string(),
             FieldType::Email => {
-                let first = FIRST_NAMES
-                    .choose(rng)
-                    .unwrap_or(&"user")
-                    .to_lowercase();
-                let last = LAST_NAMES
-                    .choose(rng)
-                    .unwrap_or(&"name")
-                    .to_lowercase();
+                let first = FIRST_NAMES.choose(rng).unwrap_or(&"user").to_lowercase();
+                let last = LAST_NAMES.choose(rng).unwrap_or(&"name").to_lowercase();
                 let domain = EMAIL_DOMAINS.choose(rng).unwrap_or(&"gmail.com");
                 let suffix = Uniform::new_inclusive(0u32, 99).sample(rng);
                 if suffix > 60 {
@@ -258,25 +316,28 @@ impl AutofillGenerator {
                 format!("{number} {street}")
             }
             FieldType::City => {
-                let (city, _, _) = US_LOCATIONS.choose(rng).unwrap_or(&("New York", "NY", "100"));
+                let (city, _, _) = US_LOCATIONS
+                    .choose(rng)
+                    .unwrap_or(&("New York", "NY", "100"));
                 city.to_string()
             }
             FieldType::State => {
-                let (_, state, _) = US_LOCATIONS.choose(rng).unwrap_or(&("New York", "NY", "100"));
+                let (_, state, _) = US_LOCATIONS
+                    .choose(rng)
+                    .unwrap_or(&("New York", "NY", "100"));
                 state.to_string()
             }
             FieldType::ZipCode => {
-                let (_, _, prefix) =
-                    US_LOCATIONS.choose(rng).unwrap_or(&("New York", "NY", "100"));
+                let (_, _, prefix) = US_LOCATIONS
+                    .choose(rng)
+                    .unwrap_or(&("New York", "NY", "100"));
                 let suffix = Uniform::new_inclusive(10u32, 99).sample(rng);
                 format!("{prefix}{suffix}")
             }
-            FieldType::CreditCard => {
-                TEST_CARD_NUMBERS
-                    .choose(rng)
-                    .unwrap_or(&"4111111111111111")
-                    .to_string()
-            }
+            FieldType::CreditCard => TEST_CARD_NUMBERS
+                .choose(rng)
+                .unwrap_or(&"4111111111111111")
+                .to_string(),
         }
     }
 
@@ -297,8 +358,16 @@ impl AutofillGenerator {
 
         // Autofill typically targets form pages
         let form_paths = [
-            "/checkout", "/login", "/register", "/signup", "/account",
-            "/contact", "/order", "/payment", "/profile", "/settings",
+            "/checkout",
+            "/login",
+            "/register",
+            "/signup",
+            "/account",
+            "/contact",
+            "/order",
+            "/payment",
+            "/profile",
+            "/settings",
         ];
         let path = form_paths.choose(rng).unwrap_or(&"/login");
         Ok(format!("{base_url}{path}"))
@@ -333,8 +402,8 @@ impl DataGenerator for AutofillGenerator {
 
         // Usage count: correlated with age -- older entries used more
         let days_old = (age_secs / 86400).max(1);
-        let usage_count = Uniform::new_inclusive(1u32, (days_old as u32).max(1).min(50))
-            .sample(rng);
+        let usage_count =
+            Uniform::new_inclusive(1u32, (days_old as u32).max(1).min(50)).sample(rng);
 
         let size_estimate = (field_name.len() + field_value.len() + form_url.len()) as u64 + 128;
 
@@ -397,7 +466,10 @@ mod tests {
         let entry: AutofillEntry = serde_json::from_slice(&bytes).unwrap();
 
         assert!(!entry.field_name.is_empty(), "field_name must not be empty");
-        assert!(!entry.field_value.is_empty(), "field_value must not be empty");
+        assert!(
+            !entry.field_value.is_empty(),
+            "field_value must not be empty"
+        );
         assert!(
             entry.form_url.starts_with("http"),
             "form_url must start with http: {}",
@@ -466,8 +538,15 @@ mod tests {
         }
 
         let expected = [
-            "first_name", "last_name", "email", "phone", "address",
-            "city", "state", "zip", "cc-number",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "cc-number",
         ];
         for field in &expected {
             assert!(
@@ -492,8 +571,14 @@ mod tests {
             let bytes = artifact.to_bytes().unwrap();
             let entry: AutofillEntry = serde_json::from_slice(&bytes).unwrap();
 
-            assert!(!entry.field_name.is_empty(), "seed {seed}: empty field_name");
-            assert!(!entry.field_value.is_empty(), "seed {seed}: empty field_value");
+            assert!(
+                !entry.field_name.is_empty(),
+                "seed {seed}: empty field_name"
+            );
+            assert!(
+                !entry.field_value.is_empty(),
+                "seed {seed}: empty field_value"
+            );
             assert!(
                 entry.form_url.starts_with("http"),
                 "seed {seed}: form_url does not start with http: {}",

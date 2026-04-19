@@ -168,12 +168,23 @@ pub fn urls_for_category(category: &InterestCategory) -> &'static [&'static str]
 /// Returns plausible subpages for a given base URL.
 pub fn subpages_for_url(base_url: &str) -> Vec<String> {
     let slugs = [
-        "/about", "/contact", "/help", "/terms", "/privacy",
-        "/search?q=test", "/article/2026/trending-topic",
-        "/category/popular", "/user/profile", "/settings",
+        "/about",
+        "/contact",
+        "/help",
+        "/terms",
+        "/privacy",
+        "/search?q=test",
+        "/article/2026/trending-topic",
+        "/category/popular",
+        "/user/profile",
+        "/settings",
     ];
 
-    slugs.iter().take(3).map(|s| format!("{base_url}{s}")).collect()
+    slugs
+        .iter()
+        .take(3)
+        .map(|s| format!("{base_url}{s}"))
+        .collect()
 }
 
 /// Search engine query URLs.

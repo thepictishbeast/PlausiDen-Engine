@@ -75,10 +75,7 @@ impl Artifact for ContentPost {
         // Text posts must respect the 280-character limit.
         if self.content_type == ContentType::TextPost && self.body.len() > 280 {
             return Err(EngineError::ImplausibleArtifact {
-                reason: format!(
-                    "text post exceeds 280 chars ({} chars)",
-                    self.body.len()
-                ),
+                reason: format!("text post exceeds 280 chars ({} chars)", self.body.len()),
             });
         }
         // Story/reel view counts should exist and be positive.
@@ -335,7 +332,10 @@ fn pick_hashtags(rng: &mut (impl RngCore + CryptoRng), lo: usize, hi: usize) -> 
     let count = Uniform::new_inclusive(lo, hi).sample(rng);
     let mut pool: Vec<&&str> = HASHTAGS.iter().collect();
     pool.shuffle(rng);
-    pool.into_iter().take(count).map(|h| (*h).to_string()).collect()
+    pool.into_iter()
+        .take(count)
+        .map(|h| (*h).to_string())
+        .collect()
 }
 
 #[cfg(test)]

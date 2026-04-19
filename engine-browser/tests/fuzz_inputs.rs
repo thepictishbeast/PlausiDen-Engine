@@ -5,6 +5,7 @@
 //! gets hammered with adversarial inputs. No test here verifies "correctness" --
 //! the only assertion is "does not crash."
 
+use chrono::{Duration, Utc};
 use engine_browser::bookmarks::{BookmarkEntry, BookmarkGenerator};
 use engine_browser::cookies::{CookieEntry, CookieGenerator};
 use engine_browser::downloads::{DownloadEntry, DownloadGenerator};
@@ -16,10 +17,7 @@ use engine_core::profile::{
     OccupationCategory, OsFamily, RiskLevel, UserProfile, UserProfileBuilder,
 };
 use engine_core::schedule::OrganicScheduler;
-use engine_core::traits::{
-    ArtifactMetadata, DataCategory, DataGenerator, GenerationContext,
-};
-use chrono::{Duration, Utc};
+use engine_core::traits::{ArtifactMetadata, DataCategory, DataGenerator, GenerationContext};
 use proptest::prelude::*;
 
 // ============================================================================
@@ -97,23 +95,26 @@ fn fuzz_history_maximum_risk() {
 
     for _ in 0..200 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "maximum risk must not crash history generator");
+        assert!(
+            result.is_ok(),
+            "maximum risk must not crash history generator"
+        );
     }
 }
 
 #[test]
 fn fuzz_cookie_maximum_risk() {
-    let profile = profile_with(
-        vec![InterestCategory::Shopping],
-        RiskLevel::Maximum,
-    );
+    let profile = profile_with(vec![InterestCategory::Shopping], RiskLevel::Maximum);
     let ctx = GenerationContext::new();
     let mut rng = seeded_rng(11);
     let generator = CookieGenerator::new();
 
     for _ in 0..200 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "maximum risk must not crash cookie generator");
+        assert!(
+            result.is_ok(),
+            "maximum risk must not crash cookie generator"
+        );
     }
 }
 
@@ -129,7 +130,10 @@ fn fuzz_search_maximum_risk() {
 
     for _ in 0..200 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "maximum risk must not crash search generator");
+        assert!(
+            result.is_ok(),
+            "maximum risk must not crash search generator"
+        );
     }
 }
 
@@ -204,7 +208,10 @@ fn fuzz_history_minimal_profile() {
 
     for _ in 0..100 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "minimal profile must not crash history generator");
+        assert!(
+            result.is_ok(),
+            "minimal profile must not crash history generator"
+        );
     }
 }
 
@@ -217,7 +224,10 @@ fn fuzz_cookie_minimal_profile() {
 
     for _ in 0..100 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "minimal profile must not crash cookie generator");
+        assert!(
+            result.is_ok(),
+            "minimal profile must not crash cookie generator"
+        );
     }
 }
 
@@ -230,7 +240,10 @@ fn fuzz_search_minimal_profile() {
 
     for _ in 0..100 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "minimal profile must not crash search generator");
+        assert!(
+            result.is_ok(),
+            "minimal profile must not crash search generator"
+        );
     }
 }
 
@@ -247,7 +260,11 @@ fn fuzz_10000_history_entries_no_crash() {
 
     for i in 0..10_000u64 {
         let result = generator.generate(&profile, &ctx, &mut rng);
-        assert!(result.is_ok(), "history entry {i} crashed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "history entry {i} crashed: {:?}",
+            result.err()
+        );
         let artifact = result.unwrap();
         let bytes = artifact.to_bytes().unwrap();
         let entry: HistoryEntry = serde_json::from_slice(&bytes).unwrap();
@@ -496,7 +513,10 @@ fn fuzz_scheduler_wake_equals_sleep() {
 
         // Must not panic or produce infinite loop
         let next = scheduler.next_timestamp(now, &mut rng);
-        assert!(next > now, "wake==sleep at hour {hour}: timestamp must still advance");
+        assert!(
+            next > now,
+            "wake==sleep at hour {hour}: timestamp must still advance"
+        );
     }
 }
 
@@ -536,10 +556,7 @@ fn fuzz_scheduler_extreme_timezone_offsets() {
         let now = Utc::now();
 
         let next = scheduler.next_timestamp(now, &mut rng);
-        assert!(
-            next > now,
-            "tz_offset={tz_offset}: timestamp must advance"
-        );
+        assert!(next > now, "tz_offset={tz_offset}: timestamp must advance");
     }
 }
 
@@ -736,7 +753,12 @@ fn fuzz_every_interest_category_individually() {
 
 #[test]
 fn fuzz_every_risk_level() {
-    let risks = [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum];
+    let risks = [
+        RiskLevel::Low,
+        RiskLevel::Medium,
+        RiskLevel::High,
+        RiskLevel::Maximum,
+    ];
     let ctx = GenerationContext::new();
     let history_gen = HistoryGenerator::new();
     let cookie_gen = CookieGenerator::new();
@@ -967,7 +989,10 @@ fn fuzz_history_serde_roundtrip_1000() {
         // Roundtrip must be stable
         let re_entry: HistoryEntry = serde_json::from_slice(&re_bytes)
             .unwrap_or_else(|e| panic!("entry {i}: double roundtrip failed: {e}"));
-        assert_eq!(entry.url, re_entry.url, "entry {i}: URL changed in roundtrip");
+        assert_eq!(
+            entry.url, re_entry.url,
+            "entry {i}: URL changed in roundtrip"
+        );
 
         generator.recent_urls.push(entry.url);
         if generator.recent_urls.len() > 20 {
@@ -1094,9 +1119,17 @@ fn fuzz_every_os_family() {
 
 /// Known bookmark folders from the generator's BOOKMARK_SITES constant.
 const KNOWN_BOOKMARK_FOLDERS: &[&str] = &[
-    "Development", "News", "Reference", "Email", "Cloud",
-    "Shopping", "Entertainment", "Social", "Professional",
-    "Productivity", "Utilities",
+    "Development",
+    "News",
+    "Reference",
+    "Email",
+    "Cloud",
+    "Shopping",
+    "Entertainment",
+    "Social",
+    "Professional",
+    "Productivity",
+    "Utilities",
 ];
 
 #[test]
@@ -1226,7 +1259,12 @@ fn fuzz_bookmark_dates_in_past() {
 
 #[test]
 fn fuzz_bookmark_every_risk_level() {
-    let levels = [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum];
+    let levels = [
+        RiskLevel::Low,
+        RiskLevel::Medium,
+        RiskLevel::High,
+        RiskLevel::Maximum,
+    ];
     let ctx = GenerationContext::new();
     let generator = BookmarkGenerator::new();
 
@@ -1253,8 +1291,14 @@ fn fuzz_bookmark_roundtrip_serde() {
         let bytes2 = serde_json::to_vec(&entry).unwrap();
         let entry2: BookmarkEntry = serde_json::from_slice(&bytes2).unwrap();
         assert_eq!(entry.url, entry2.url, "seed {seed}: URL roundtrip mismatch");
-        assert_eq!(entry.title, entry2.title, "seed {seed}: title roundtrip mismatch");
-        assert_eq!(entry.folder, entry2.folder, "seed {seed}: folder roundtrip mismatch");
+        assert_eq!(
+            entry.title, entry2.title,
+            "seed {seed}: title roundtrip mismatch"
+        );
+        assert_eq!(
+            entry.folder, entry2.folder,
+            "seed {seed}: folder roundtrip mismatch"
+        );
     }
 }
 
@@ -1442,10 +1486,8 @@ fn fuzz_download_duration_scales_with_size() {
         "no downloads above {size_threshold} bytes in 1000 samples",
     );
 
-    let avg_small: f64 = small_durations.iter().sum::<i64>() as f64
-        / small_durations.len() as f64;
-    let avg_large: f64 = large_durations.iter().sum::<i64>() as f64
-        / large_durations.len() as f64;
+    let avg_small: f64 = small_durations.iter().sum::<i64>() as f64 / small_durations.len() as f64;
+    let avg_large: f64 = large_durations.iter().sum::<i64>() as f64 / large_durations.len() as f64;
 
     assert!(
         avg_large > avg_small,
@@ -1456,7 +1498,12 @@ fn fuzz_download_duration_scales_with_size() {
 
 #[test]
 fn fuzz_download_every_risk_level() {
-    let levels = [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum];
+    let levels = [
+        RiskLevel::Low,
+        RiskLevel::Medium,
+        RiskLevel::High,
+        RiskLevel::Maximum,
+    ];
     let ctx = GenerationContext::new();
     let generator = DownloadGenerator::new();
 
@@ -1482,8 +1529,14 @@ fn fuzz_download_roundtrip_serde() {
         let bytes2 = serde_json::to_vec(&entry).unwrap();
         let entry2: DownloadEntry = serde_json::from_slice(&bytes2).unwrap();
         assert_eq!(entry.url, entry2.url, "seed {seed}: URL roundtrip mismatch");
-        assert_eq!(entry.filename, entry2.filename, "seed {seed}: filename roundtrip mismatch");
-        assert_eq!(entry.size_bytes, entry2.size_bytes, "seed {seed}: size roundtrip mismatch");
+        assert_eq!(
+            entry.filename, entry2.filename,
+            "seed {seed}: filename roundtrip mismatch"
+        );
+        assert_eq!(
+            entry.size_bytes, entry2.size_bytes,
+            "seed {seed}: size roundtrip mismatch"
+        );
     }
 }
 

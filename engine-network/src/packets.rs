@@ -32,36 +32,64 @@ pub struct FlowEntry {
 }
 
 impl Artifact for FlowEntry {
-    fn metadata(&self) -> &ArtifactMetadata { &self.meta }
+    fn metadata(&self) -> &ArtifactMetadata {
+        &self.meta
+    }
     fn validate_plausibility(&self) -> Result<()> {
         self.meta.validate_timestamps()?;
         if self.bytes_sent == 0 && self.bytes_received == 0 {
-            return Err(EngineError::ImplausibleArtifact { reason: "zero-byte flow".into() });
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "zero-byte flow".into(),
+            });
         }
         Ok(())
     }
-    fn to_bytes(&self) -> Result<Vec<u8>> { serde_json::to_vec(self).map_err(EngineError::Serialization) }
+    fn to_bytes(&self) -> Result<Vec<u8>> {
+        serde_json::to_vec(self).map_err(EngineError::Serialization)
+    }
 }
 
 const COMMON_PORTS: &[(u16, &str)] = &[
-    (80, "http"), (443, "https"), (53, "dns"), (22, "ssh"),
-    (25, "smtp"), (993, "imaps"), (8080, "http-alt"), (8443, "https-alt"),
-    (3306, "mysql"), (5432, "postgresql"), (6379, "redis"),
+    (80, "http"),
+    (443, "https"),
+    (53, "dns"),
+    (22, "ssh"),
+    (25, "smtp"),
+    (993, "imaps"),
+    (8080, "http-alt"),
+    (8443, "https-alt"),
+    (3306, "mysql"),
+    (5432, "postgresql"),
+    (6379, "redis"),
 ];
 
 pub struct FlowGenerator;
-impl FlowGenerator { pub fn new() -> Self { Self } }
-impl Default for FlowGenerator { fn default() -> Self { Self::new() } }
+impl FlowGenerator {
+    pub fn new() -> Self {
+        Self
+    }
+}
+impl Default for FlowGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DataGenerator for FlowGenerator {
-    fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
+    fn generate(
+        &self,
+        _profile: &UserProfile,
+        context: &GenerationContext,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Result<Box<dyn Artifact>> {
         // SAFETY: COMMON_PORTS is a non-empty const slice.
         let (port, proto) = COMMON_PORTS
             .choose(rng)
             .expect("COMMON_PORTS is a non-empty const slice");
 
         let src_port = Uniform::new_inclusive(32768u16, 65535).sample(rng);
-        let dst_ip = format!("{}.{}.{}.{}",
+        let dst_ip = format!(
+            "{}.{}.{}.{}",
             Uniform::new_inclusive(1u8, 223).sample(rng),
             Uniform::new_inclusive(0u8, 255).sample(rng),
             Uniform::new_inclusive(0u8, 255).sample(rng),
@@ -81,16 +109,30 @@ impl DataGenerator for FlowGenerator {
         let meta = ArtifactMetadata::new(DataCategory::Network, start_time, end_time, 256)?;
 
         let entry = FlowEntry {
-            meta, src_ip: "192.168.1.100".into(), src_port, dst_ip, dst_port: *port,
-            protocol: proto.to_string(), bytes_sent, bytes_received,
-            packets_sent, packets_received, duration_ms, start_time, end_time,
+            meta,
+            src_ip: "192.168.1.100".into(),
+            src_port,
+            dst_ip,
+            dst_port: *port,
+            protocol: proto.to_string(),
+            bytes_sent,
+            bytes_received,
+            packets_sent,
+            packets_received,
+            duration_ms,
+            start_time,
+            end_time,
         };
         entry.validate_plausibility()?;
         Ok(Box::new(entry))
     }
 
-    fn category(&self) -> DataCategory { DataCategory::Network }
-    fn forensic_weight(&self) -> u32 { 65 }
+    fn category(&self) -> DataCategory {
+        DataCategory::Network
+    }
+    fn forensic_weight(&self) -> u32 {
+        65
+    }
 }
 
 #[cfg(test)]
@@ -113,7 +155,13 @@ mod tests {
         let g = FlowGenerator::new();
         let p = UserProfile::default();
         let c = GenerationContext::new();
-        for s in 0..500 { let mut r = seeded_rng(s); g.generate(&p, &c, &mut r).unwrap().validate_plausibility().unwrap(); }
+        for s in 0..500 {
+            let mut r = seeded_rng(s);
+            g.generate(&p, &c, &mut r)
+                .unwrap()
+                .validate_plausibility()
+                .unwrap();
+        }
     }
 
     #[test]

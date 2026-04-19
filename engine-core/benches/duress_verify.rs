@@ -18,8 +18,8 @@
 //! Parameterized across duress-list sizes {1, 4, 16} to confirm work
 //! is linear in list length (the all-or-nothing iteration invariant).
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use engine_core::duress::{verify, DuressConfig, DuressEntry, DuressResponse};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use engine_core::duress::{DuressConfig, DuressEntry, DuressResponse, verify};
 use std::hint::black_box;
 
 /// Build a config with `n` duress entries. Uses a stable byte pattern

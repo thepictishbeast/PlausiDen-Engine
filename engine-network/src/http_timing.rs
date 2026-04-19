@@ -270,10 +270,11 @@ impl DataGenerator for HttpTimingGenerator {
             // 304 Not Modified: no body.
             0u64
         } else {
-            let (_, min_size, max_size) = CONTENT_PROFILES
-                .choose(rng)
-                .copied()
-                .unwrap_or(("application/octet-stream", 100, 10_000));
+            let (_, min_size, max_size) = CONTENT_PROFILES.choose(rng).copied().unwrap_or((
+                "application/octet-stream",
+                100,
+                10_000,
+            ));
             Uniform::new_inclusive(min_size, max_size).sample(rng)
         };
 
@@ -282,12 +283,8 @@ impl DataGenerator for HttpTimingGenerator {
         let timestamp = context.now - Duration::seconds(jitter);
 
         let estimated_size = (url.len() as u64) + content_length.min(1024) + 256;
-        let meta = ArtifactMetadata::new(
-            DataCategory::Network,
-            timestamp,
-            timestamp,
-            estimated_size,
-        )?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::Network, timestamp, timestamp, estimated_size)?;
 
         let entry = HttpTiming {
             meta,
@@ -327,7 +324,9 @@ mod tests {
         let ctx = GenerationContext::new();
         let mut rng = seeded_rng(42);
 
-        let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation");
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .expect("generation");
         artifact.validate_plausibility().expect("plausibility");
 
         let bytes = artifact.to_bytes().expect("serialization");

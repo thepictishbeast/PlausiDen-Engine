@@ -7,11 +7,11 @@
 //! Pass criterion: no statistical test should reliably separate synthetic
 //! from organic data. Classifiers must achieve AUC <= 0.55 (no better than chance).
 
+use engine_browser::CookieGenerator;
+use engine_browser::SearchGenerator;
 use engine_browser::cookies::CookieEntry;
 use engine_browser::history::{HistoryEntry, HistoryGenerator, TransitionType};
 use engine_browser::searches::SearchEntry;
-use engine_browser::CookieGenerator;
-use engine_browser::SearchGenerator;
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::{InterestCategory, UserProfile, UserProfileBuilder};
 use engine_core::traits::{DataGenerator, GenerationContext};
@@ -57,11 +57,7 @@ fn generate_cookie_entries(n: usize, seed: u64) -> Vec<CookieEntry> {
 }
 
 /// Helper: generate N search entries.
-fn generate_search_entries(
-    n: usize,
-    seed: u64,
-    profile: &UserProfile,
-) -> Vec<SearchEntry> {
+fn generate_search_entries(n: usize, seed: u64, profile: &UserProfile) -> Vec<SearchEntry> {
     let ctx = GenerationContext::new();
     let mut rng = seeded_rng(seed);
     let generator = SearchGenerator::new();
@@ -311,17 +307,16 @@ fn test_cookie_history_correlation() {
     let cookies = generate_cookie_entries(200, 42);
 
     // Collect all domains visited in history
-    let history_domains: std::collections::HashSet<String> = entries
-        .iter()
-        .map(|e| domain_from_url(&e.url))
-        .collect();
+    let history_domains: std::collections::HashSet<String> =
+        entries.iter().map(|e| domain_from_url(&e.url)).collect();
 
     // Check how many cookie domains appear in history
     let mut cookies_in_history = 0u32;
     for cookie in &cookies {
         let cookie_domain = cookie.domain.strip_prefix('.').unwrap_or(&cookie.domain);
         if history_domains.iter().any(|hd| {
-            hd == cookie_domain || hd.ends_with(&format!(".{cookie_domain}"))
+            hd == cookie_domain
+                || hd.ends_with(&format!(".{cookie_domain}"))
                 || cookie_domain.ends_with(&format!(".{hd}"))
                 || hd.contains(cookie_domain)
                 || cookie_domain.contains(hd.as_str())
@@ -411,8 +406,18 @@ fn test_search_query_relevance() {
 
     let mut tech_relevant = 0u32;
     let tech_keywords = [
-        "rust", "programming", "linux", "docker", "python", "git", "distro", "rebase", "merge",
-        "setup", "performance", "tutorial",
+        "rust",
+        "programming",
+        "linux",
+        "docker",
+        "python",
+        "git",
+        "distro",
+        "rebase",
+        "merge",
+        "setup",
+        "performance",
+        "tutorial",
     ];
     for entry in &tech_searches {
         let lower = entry.query.to_lowercase();

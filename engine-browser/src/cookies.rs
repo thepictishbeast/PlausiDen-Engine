@@ -115,9 +115,7 @@ impl CookieGenerator {
             .map(|(_, p)| *p)
             .unwrap_or("");
 
-        let random_part: u64 = Uniform::new_inclusive(100_000_000u64, 9_999_999_999u64)
-            
-            .sample(rng);
+        let random_part: u64 = Uniform::new_inclusive(100_000_000u64, 9_999_999_999u64).sample(rng);
 
         format!("{prefix}{random_part}")
     }
@@ -139,11 +137,11 @@ impl CookieGenerator {
     fn expiry_duration(rng: &mut (impl RngCore + CryptoRng)) -> Duration {
         let choice = Uniform::new_inclusive(0u32, 9).sample(rng);
         match choice {
-            0..=2 => Duration::hours(1),                // Session-like: 1 hour
-            3..=4 => Duration::days(1),                  // Daily
-            5..=6 => Duration::days(30),                 // Monthly
-            7..=8 => Duration::days(365),                // Annual
-            _ => Duration::days(365 * 2),                // Long-lived (2 years, max per spec)
+            0..=2 => Duration::hours(1),  // Session-like: 1 hour
+            3..=4 => Duration::days(1),   // Daily
+            5..=6 => Duration::days(30),  // Monthly
+            7..=8 => Duration::days(365), // Annual
+            _ => Duration::days(365 * 2), // Long-lived (2 years, max per spec)
         }
     }
 }
@@ -175,15 +173,11 @@ impl DataGenerator for CookieGenerator {
         let domain = Self::domain_from_url(base_url);
 
         // Pick a cookie name
-        let (name, _) = COMMON_COOKIES
-            .choose(rng)
-            .unwrap_or(&("session", ""));
+        let (name, _) = COMMON_COOKIES.choose(rng).unwrap_or(&("session", ""));
 
         let value = Self::generate_value(name, rng);
 
-        let jitter = Uniform::new_inclusive(0i64, 3600)
-            
-            .sample(rng);
+        let jitter = Uniform::new_inclusive(0i64, 3600).sample(rng);
         let created_at = context.now - Duration::seconds(jitter);
         let expires_at = created_at + Self::expiry_duration(rng);
 
@@ -254,9 +248,15 @@ mod tests {
         let cookie: CookieEntry = serde_json::from_slice(&bytes).unwrap();
 
         // Cookie domain should start with a dot
-        assert!(cookie.domain.starts_with('.'), "cookie domain should start with '.'");
+        assert!(
+            cookie.domain.starts_with('.'),
+            "cookie domain should start with '.'"
+        );
         // Domain should correspond to a real domain from our corpus
-        assert!(cookie.domain.len() > 1, "cookie domain should not be just a dot");
+        assert!(
+            cookie.domain.len() > 1,
+            "cookie domain should not be just a dot"
+        );
     }
 
     #[test]

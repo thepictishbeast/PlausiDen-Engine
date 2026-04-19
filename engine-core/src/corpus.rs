@@ -41,11 +41,17 @@ impl Corpus {
     }
 
     pub fn entries_by_category(&self, category: &str) -> Vec<&CorpusEntry> {
-        self.entries.iter().filter(|e| e.category == category).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.category == category)
+            .collect()
     }
 
     pub fn entries_by_tag(&self, tag: &str) -> Vec<&CorpusEntry> {
-        self.entries.iter().filter(|e| e.tags.iter().any(|t| t == tag)).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.tags.iter().any(|t| t == tag))
+            .collect()
     }
 
     pub fn categories(&self) -> Vec<String> {
@@ -70,7 +76,9 @@ pub struct CorpusRegistry {
 
 impl CorpusRegistry {
     pub fn new() -> Self {
-        Self { corpora: HashMap::new() }
+        Self {
+            corpora: HashMap::new(),
+        }
     }
 
     /// Register a corpus.
@@ -95,7 +103,10 @@ impl CorpusRegistry {
 
     /// All corpora for a locale.
     pub fn for_locale(&self, locale: &str) -> Vec<&Corpus> {
-        self.corpora.values().filter(|c| c.locale == locale).collect()
+        self.corpora
+            .values()
+            .filter(|c| c.locale == locale)
+            .collect()
     }
 
     /// Total entries across all corpora.
@@ -109,7 +120,9 @@ impl CorpusRegistry {
 }
 
 impl Default for CorpusRegistry {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

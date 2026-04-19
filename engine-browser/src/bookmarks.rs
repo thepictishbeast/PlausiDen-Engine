@@ -20,14 +20,26 @@ pub struct BookmarkEntry {
 }
 
 impl Artifact for BookmarkEntry {
-    fn metadata(&self) -> &ArtifactMetadata { &self.meta }
+    fn metadata(&self) -> &ArtifactMetadata {
+        &self.meta
+    }
     fn validate_plausibility(&self) -> Result<()> {
         self.meta.validate_timestamps()?;
-        if self.url.is_empty() { return Err(EngineError::ImplausibleArtifact { reason: "empty bookmark URL".into() }); }
-        if self.title.is_empty() { return Err(EngineError::ImplausibleArtifact { reason: "empty bookmark title".into() }); }
+        if self.url.is_empty() {
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "empty bookmark URL".into(),
+            });
+        }
+        if self.title.is_empty() {
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "empty bookmark title".into(),
+            });
+        }
         Ok(())
     }
-    fn to_bytes(&self) -> Result<Vec<u8>> { serde_json::to_vec(self).map_err(EngineError::Serialization) }
+    fn to_bytes(&self) -> Result<Vec<u8>> {
+        serde_json::to_vec(self).map_err(EngineError::Serialization)
+    }
 }
 
 const BOOKMARK_SITES: &[(&str, &str, &str)] = &[
@@ -47,18 +59,35 @@ const BOOKMARK_SITES: &[(&str, &str, &str)] = &[
     ("https://www.reddit.com", "Reddit", "Social"),
     ("https://twitter.com", "X (Twitter)", "Social"),
     ("https://www.linkedin.com", "LinkedIn", "Professional"),
-    ("https://calendar.google.com", "Google Calendar", "Productivity"),
+    (
+        "https://calendar.google.com",
+        "Google Calendar",
+        "Productivity",
+    ),
     ("https://trello.com", "Trello", "Productivity"),
     ("https://www.notion.so", "Notion", "Productivity"),
     ("https://weather.com", "Weather", "Utilities"),
 ];
 
 pub struct BookmarkGenerator;
-impl BookmarkGenerator { pub fn new() -> Self { Self } }
-impl Default for BookmarkGenerator { fn default() -> Self { Self::new() } }
+impl BookmarkGenerator {
+    pub fn new() -> Self {
+        Self
+    }
+}
+impl Default for BookmarkGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DataGenerator for BookmarkGenerator {
-    fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
+    fn generate(
+        &self,
+        _profile: &UserProfile,
+        context: &GenerationContext,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Result<Box<dyn Artifact>> {
         // SAFETY: BOOKMARK_SITES is a non-empty const slice — choose()
         // only returns None on empty input. Annotated per AVP-2.
         let (url, title, folder) = BOOKMARK_SITES
@@ -69,15 +98,28 @@ impl DataGenerator for BookmarkGenerator {
         let meta = ArtifactMetadata::new(DataCategory::BrowserActivity, added_at, added_at, 256)?;
 
         let entry = BookmarkEntry {
-            meta, url: url.to_string(), title: title.to_string(),
-            folder: folder.to_string(), added_at,
+            meta,
+            url: url.to_string(),
+            title: title.to_string(),
+            folder: folder.to_string(),
+            added_at,
         };
         entry.validate_plausibility()?;
         Ok(Box::new(entry))
     }
-    fn category(&self) -> DataCategory { DataCategory::BrowserActivity }
-    fn forensic_weight(&self) -> u32 { 60 }
-    fn resource_cost(&self) -> ResourceCost { ResourceCost { cpu_us: 10, disk_bytes: 128, network_bytes: 0 } }
+    fn category(&self) -> DataCategory {
+        DataCategory::BrowserActivity
+    }
+    fn forensic_weight(&self) -> u32 {
+        60
+    }
+    fn resource_cost(&self) -> ResourceCost {
+        ResourceCost {
+            cpu_us: 10,
+            disk_bytes: 128,
+            network_bytes: 0,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -105,7 +147,13 @@ mod tests {
         let g = BookmarkGenerator::new();
         let p = UserProfile::default();
         let c = GenerationContext::new();
-        for s in 0..200 { let mut r = seeded_rng(s); g.generate(&p, &c, &mut r).unwrap().validate_plausibility().unwrap(); }
+        for s in 0..200 {
+            let mut r = seeded_rng(s);
+            g.generate(&p, &c, &mut r)
+                .unwrap()
+                .validate_plausibility()
+                .unwrap();
+        }
     }
 
     #[test]

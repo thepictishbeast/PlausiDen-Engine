@@ -174,21 +174,105 @@ const EXTERNAL_LOCATIONS: &[&str] = &[
 // ---- Name/email pools for attendees ----
 
 const FIRST_NAMES: &[&str] = &[
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
-    "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
-    "Thomas", "Sarah", "Charles", "Karen", "Christopher", "Lisa", "Daniel", "Nancy",
-    "Matthew", "Betty", "Anthony", "Margaret", "Mark", "Sandra", "Andrew", "Emily",
-    "Paul", "Donna", "Joshua", "Michelle", "Kenneth", "Carol", "Kevin", "Amanda",
-    "Brian", "Melissa", "George", "Deborah", "Timothy", "Stephanie", "Ronald", "Rebecca",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "William",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Charles",
+    "Karen",
+    "Christopher",
+    "Lisa",
+    "Daniel",
+    "Nancy",
+    "Matthew",
+    "Betty",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Andrew",
+    "Emily",
+    "Paul",
+    "Donna",
+    "Joshua",
+    "Michelle",
+    "Kenneth",
+    "Carol",
+    "Kevin",
+    "Amanda",
+    "Brian",
+    "Melissa",
+    "George",
+    "Deborah",
+    "Timothy",
+    "Stephanie",
+    "Ronald",
+    "Rebecca",
 ];
 
 const LAST_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson",
-    "Martin", "Lee", "Thompson", "White", "Harris", "Clark", "Lewis", "Robinson",
-    "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen",
-    "Hill", "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell",
-    "Mitchell", "Carter", "Roberts", "Phillips", "Evans", "Turner", "Parker", "Collins",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Thompson",
+    "White",
+    "Harris",
+    "Clark",
+    "Lewis",
+    "Robinson",
+    "Walker",
+    "Young",
+    "Allen",
+    "King",
+    "Wright",
+    "Scott",
+    "Torres",
+    "Nguyen",
+    "Hill",
+    "Green",
+    "Adams",
+    "Nelson",
+    "Baker",
+    "Hall",
+    "Rivera",
+    "Campbell",
+    "Mitchell",
+    "Carter",
+    "Roberts",
+    "Phillips",
+    "Evans",
+    "Turner",
+    "Parker",
+    "Collins",
 ];
 
 const EMAIL_DOMAINS: &[&str] = &[
@@ -287,10 +371,7 @@ impl Artifact for CalendarEntry {
             let span = self.end_time - self.start_time;
             if span < Duration::hours(23) {
                 return Err(EngineError::ImplausibleArtifact {
-                    reason: format!(
-                        "all-day event spans only {} hours",
-                        span.num_hours()
-                    ),
+                    reason: format!("all-day event spans only {} hours", span.num_hours()),
                 });
             }
         }
@@ -335,10 +416,7 @@ impl CalendarGenerator {
     }
 
     /// Choose a title appropriate for the event type.
-    fn choose_title(
-        event_type: EventType,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> &'static str {
+    fn choose_title(event_type: EventType, rng: &mut (impl RngCore + CryptoRng)) -> &'static str {
         let pool = match event_type {
             EventType::Meeting => MEETING_TITLES,
             EventType::Appointment => APPOINTMENT_TITLES,
@@ -366,12 +444,7 @@ impl CalendarGenerator {
                             .unwrap_or(&"Conference Room")
                             .to_string(),
                     ),
-                    4..=7 => Some(
-                        VIRTUAL_LOCATIONS
-                            .choose(rng)
-                            .unwrap_or(&"Zoom")
-                            .to_string(),
-                    ),
+                    4..=7 => Some(VIRTUAL_LOCATIONS.choose(rng).unwrap_or(&"Zoom").to_string()),
                     _ => Some(
                         EXTERNAL_LOCATIONS
                             .choose(rng)
@@ -419,10 +492,7 @@ impl CalendarGenerator {
     }
 
     /// Generate a list of attendee email addresses.
-    fn build_attendees(
-        event_type: EventType,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> Vec<String> {
+    fn build_attendees(event_type: EventType, rng: &mut (impl RngCore + CryptoRng)) -> Vec<String> {
         let count = match event_type {
             EventType::Meeting => Uniform::new_inclusive(2u32, 20).sample(rng),
             EventType::Appointment => Uniform::new_inclusive(1u32, 2).sample(rng),
@@ -502,10 +572,7 @@ impl CalendarGenerator {
     }
 
     /// Choose a reminder lead time in minutes.
-    fn choose_reminder_minutes(
-        event_type: EventType,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> u32 {
+    fn choose_reminder_minutes(event_type: EventType, rng: &mut (impl RngCore + CryptoRng)) -> u32 {
         let roll = Uniform::new_inclusive(0u32, 99).sample(rng);
         match event_type {
             EventType::Meeting | EventType::Appointment => match roll {
@@ -553,10 +620,7 @@ impl CalendarGenerator {
                 // Meetings: 15 min to 3 hours, during work hours
                 let offset_days = Uniform::new_inclusive(0i64, 60).sample(rng);
                 let hour = Uniform::new_inclusive(8u32, 17).sample(rng);
-                let minute = [0u32, 15, 30, 45]
-                    .choose(rng)
-                    .copied()
-                    .unwrap_or(0);
+                let minute = [0u32, 15, 30, 45].choose(rng).copied().unwrap_or(0);
                 let base = context.now - Duration::days(offset_days.unsigned_abs() as i64);
                 let start = base
                     - Duration::hours(base.time().hour() as i64)
@@ -636,8 +700,7 @@ impl DataGenerator for CalendarGenerator {
     ) -> Result<Box<dyn Artifact>> {
         let event_type = Self::choose_event_type(rng);
         let title = Self::choose_title(event_type, rng).to_string();
-        let (start_time, end_time, is_all_day) =
-            Self::compute_times(event_type, context, rng);
+        let (start_time, end_time, is_all_day) = Self::compute_times(event_type, context, rng);
         let location = Self::choose_location(event_type, rng);
         let recurrence = Self::choose_recurrence(event_type, rng);
         let attendees = Self::build_attendees(event_type, rng);
@@ -766,7 +829,10 @@ mod tests {
                 );
             }
         }
-        assert!(found_all_day, "should have generated at least one all-day event in 500 tries");
+        assert!(
+            found_all_day,
+            "should have generated at least one all-day event in 500 tries"
+        );
     }
 
     #[test]
@@ -824,9 +890,19 @@ mod tests {
                     "entry {i} attendee {j}: '{email}' missing '@'"
                 );
                 let parts: Vec<&str> = email.split('@').collect();
-                assert_eq!(parts.len(), 2, "entry {i} attendee {j}: should have one '@'");
-                assert!(!parts[0].is_empty(), "entry {i} attendee {j}: empty local part");
-                assert!(parts[1].contains('.'), "entry {i} attendee {j}: domain missing '.'");
+                assert_eq!(
+                    parts.len(),
+                    2,
+                    "entry {i} attendee {j}: should have one '@'"
+                );
+                assert!(
+                    !parts[0].is_empty(),
+                    "entry {i} attendee {j}: empty local part"
+                );
+                assert!(
+                    parts[1].contains('.'),
+                    "entry {i} attendee {j}: domain missing '.'"
+                );
                 total_attendees += 1;
             }
         }

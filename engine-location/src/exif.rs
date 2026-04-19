@@ -34,18 +34,26 @@ pub struct ExifEntry {
 }
 
 impl Artifact for ExifEntry {
-    fn metadata(&self) -> &ArtifactMetadata { &self.meta }
+    fn metadata(&self) -> &ArtifactMetadata {
+        &self.meta
+    }
     fn validate_plausibility(&self) -> Result<()> {
         self.meta.validate_timestamps()?;
         if self.gps_latitude < -90.0 || self.gps_latitude > 90.0 {
-            return Err(EngineError::ImplausibleArtifact { reason: format!("latitude out of range: {}", self.gps_latitude) });
+            return Err(EngineError::ImplausibleArtifact {
+                reason: format!("latitude out of range: {}", self.gps_latitude),
+            });
         }
         if self.gps_longitude < -180.0 || self.gps_longitude > 180.0 {
-            return Err(EngineError::ImplausibleArtifact { reason: format!("longitude out of range: {}", self.gps_longitude) });
+            return Err(EngineError::ImplausibleArtifact {
+                reason: format!("longitude out of range: {}", self.gps_longitude),
+            });
         }
         Ok(())
     }
-    fn to_bytes(&self) -> Result<Vec<u8>> { serde_json::to_vec(self).map_err(EngineError::Serialization) }
+    fn to_bytes(&self) -> Result<Vec<u8>> {
+        serde_json::to_vec(self).map_err(EngineError::Serialization)
+    }
 }
 
 const CAMERAS: &[(&str, &str, u32, u32)] = &[
@@ -61,11 +69,24 @@ const CAMERAS: &[(&str, &str, u32, u32)] = &[
 ];
 
 pub struct ExifGenerator;
-impl ExifGenerator { pub fn new() -> Self { Self } }
-impl Default for ExifGenerator { fn default() -> Self { Self::new() } }
+impl ExifGenerator {
+    pub fn new() -> Self {
+        Self
+    }
+}
+impl Default for ExifGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DataGenerator for ExifGenerator {
-    fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
+    fn generate(
+        &self,
+        _profile: &UserProfile,
+        context: &GenerationContext,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Result<Box<dyn Artifact>> {
         // SAFETY: CAMERAS is a non-empty const slice.
         let (make, model, w, h) = CAMERAS
             .choose(rng)
@@ -94,19 +115,31 @@ impl DataGenerator for ExifGenerator {
         let meta = ArtifactMetadata::new(DataCategory::Location, dt, dt, 4096)?;
 
         let entry = ExifEntry {
-            meta, filename: format!("IMG_{img_num}.jpg"),
-            camera_make: make.to_string(), camera_model: model.to_string(),
-            gps_latitude: lat, gps_longitude: lon, gps_altitude: alt,
-            datetime_original: dt, image_width: *w, image_height: *h,
-            focal_length_mm: focal, exposure_time: exposure.to_string(),
-            iso_speed: iso, orientation: 1,
+            meta,
+            filename: format!("IMG_{img_num}.jpg"),
+            camera_make: make.to_string(),
+            camera_model: model.to_string(),
+            gps_latitude: lat,
+            gps_longitude: lon,
+            gps_altitude: alt,
+            datetime_original: dt,
+            image_width: *w,
+            image_height: *h,
+            focal_length_mm: focal,
+            exposure_time: exposure.to_string(),
+            iso_speed: iso,
+            orientation: 1,
         };
         entry.validate_plausibility()?;
         Ok(Box::new(entry))
     }
 
-    fn category(&self) -> DataCategory { DataCategory::Location }
-    fn forensic_weight(&self) -> u32 { 80 }
+    fn category(&self) -> DataCategory {
+        DataCategory::Location
+    }
+    fn forensic_weight(&self) -> u32 {
+        80
+    }
 }
 
 #[cfg(test)]
@@ -133,7 +166,13 @@ mod tests {
         let g = ExifGenerator::new();
         let p = UserProfile::default();
         let c = GenerationContext::new();
-        for s in 0..500 { let mut r = seeded_rng(s); g.generate(&p, &c, &mut r).unwrap().validate_plausibility().unwrap(); }
+        for s in 0..500 {
+            let mut r = seeded_rng(s);
+            g.generate(&p, &c, &mut r)
+                .unwrap()
+                .validate_plausibility()
+                .unwrap();
+        }
     }
 
     #[test]

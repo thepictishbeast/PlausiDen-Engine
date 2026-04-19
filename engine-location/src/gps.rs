@@ -35,30 +35,126 @@ struct CityCenter {
 
 /// Pool of 24 major US city centers for initial seed points.
 const CITY_POOL: &[CityCenter] = &[
-    CityCenter { lat: 40.7128, lon: -74.0060, name: "New York" },
-    CityCenter { lat: 34.0522, lon: -118.2437, name: "Los Angeles" },
-    CityCenter { lat: 41.8781, lon: -87.6298, name: "Chicago" },
-    CityCenter { lat: 29.7604, lon: -95.3698, name: "Houston" },
-    CityCenter { lat: 33.4484, lon: -112.0740, name: "Phoenix" },
-    CityCenter { lat: 29.9511, lon: -90.0715, name: "New Orleans" },
-    CityCenter { lat: 39.7392, lon: -104.9903, name: "Denver" },
-    CityCenter { lat: 47.6062, lon: -122.3321, name: "Seattle" },
-    CityCenter { lat: 37.7749, lon: -122.4194, name: "San Francisco" },
-    CityCenter { lat: 30.2672, lon: -97.7431, name: "Austin" },
-    CityCenter { lat: 35.2271, lon: -80.8431, name: "Charlotte" },
-    CityCenter { lat: 42.3601, lon: -71.0589, name: "Boston" },
-    CityCenter { lat: 38.9072, lon: -77.0369, name: "Washington DC" },
-    CityCenter { lat: 36.1627, lon: -86.7816, name: "Nashville" },
-    CityCenter { lat: 39.9612, lon: -82.9988, name: "Columbus" },
-    CityCenter { lat: 32.7767, lon: -96.7970, name: "Dallas" },
-    CityCenter { lat: 45.5152, lon: -122.6784, name: "Portland" },
-    CityCenter { lat: 25.7617, lon: -80.1918, name: "Miami" },
-    CityCenter { lat: 33.7490, lon: -84.3880, name: "Atlanta" },
-    CityCenter { lat: 44.9778, lon: -93.2650, name: "Minneapolis" },
-    CityCenter { lat: 36.1699, lon: -115.1398, name: "Las Vegas" },
-    CityCenter { lat: 37.3382, lon: -121.8863, name: "San Jose" },
-    CityCenter { lat: 35.4676, lon: -97.5164, name: "Oklahoma City" },
-    CityCenter { lat: 43.0389, lon: -87.9065, name: "Milwaukee" },
+    CityCenter {
+        lat: 40.7128,
+        lon: -74.0060,
+        name: "New York",
+    },
+    CityCenter {
+        lat: 34.0522,
+        lon: -118.2437,
+        name: "Los Angeles",
+    },
+    CityCenter {
+        lat: 41.8781,
+        lon: -87.6298,
+        name: "Chicago",
+    },
+    CityCenter {
+        lat: 29.7604,
+        lon: -95.3698,
+        name: "Houston",
+    },
+    CityCenter {
+        lat: 33.4484,
+        lon: -112.0740,
+        name: "Phoenix",
+    },
+    CityCenter {
+        lat: 29.9511,
+        lon: -90.0715,
+        name: "New Orleans",
+    },
+    CityCenter {
+        lat: 39.7392,
+        lon: -104.9903,
+        name: "Denver",
+    },
+    CityCenter {
+        lat: 47.6062,
+        lon: -122.3321,
+        name: "Seattle",
+    },
+    CityCenter {
+        lat: 37.7749,
+        lon: -122.4194,
+        name: "San Francisco",
+    },
+    CityCenter {
+        lat: 30.2672,
+        lon: -97.7431,
+        name: "Austin",
+    },
+    CityCenter {
+        lat: 35.2271,
+        lon: -80.8431,
+        name: "Charlotte",
+    },
+    CityCenter {
+        lat: 42.3601,
+        lon: -71.0589,
+        name: "Boston",
+    },
+    CityCenter {
+        lat: 38.9072,
+        lon: -77.0369,
+        name: "Washington DC",
+    },
+    CityCenter {
+        lat: 36.1627,
+        lon: -86.7816,
+        name: "Nashville",
+    },
+    CityCenter {
+        lat: 39.9612,
+        lon: -82.9988,
+        name: "Columbus",
+    },
+    CityCenter {
+        lat: 32.7767,
+        lon: -96.7970,
+        name: "Dallas",
+    },
+    CityCenter {
+        lat: 45.5152,
+        lon: -122.6784,
+        name: "Portland",
+    },
+    CityCenter {
+        lat: 25.7617,
+        lon: -80.1918,
+        name: "Miami",
+    },
+    CityCenter {
+        lat: 33.7490,
+        lon: -84.3880,
+        name: "Atlanta",
+    },
+    CityCenter {
+        lat: 44.9778,
+        lon: -93.2650,
+        name: "Minneapolis",
+    },
+    CityCenter {
+        lat: 36.1699,
+        lon: -115.1398,
+        name: "Las Vegas",
+    },
+    CityCenter {
+        lat: 37.3382,
+        lon: -121.8863,
+        name: "San Jose",
+    },
+    CityCenter {
+        lat: 35.4676,
+        lon: -97.5164,
+        name: "Oklahoma City",
+    },
+    CityCenter {
+        lat: 43.0389,
+        lon: -87.9065,
+        name: "Milwaukee",
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -181,7 +277,11 @@ impl CircadianPhase {
         let wake = profile.activity_schedule.wake_hour as u32;
         let sleep = profile.activity_schedule.sleep_hour as u32;
         let commute_morning_end = (wake + 1).min(23);
-        let work_end = if sleep > 6 { sleep.saturating_sub(5) } else { 17 };
+        let work_end = if sleep > 6 {
+            sleep.saturating_sub(5)
+        } else {
+            17
+        };
         let commute_evening_end = (work_end + 1).min(23);
 
         if hour < wake || hour >= sleep {
@@ -280,10 +380,7 @@ impl GpsTraceGenerator {
     /// The circadian-preferred mode is chosen 70% of the time; the
     /// remaining 30% allows for short walks during work or brief
     /// driving errands at night.
-    fn choose_mode(
-        phase: CircadianPhase,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> MovementMode {
+    fn choose_mode(phase: CircadianPhase, rng: &mut (impl RngCore + CryptoRng)) -> MovementMode {
         let roll = Uniform::new_inclusive(0u32, 99).sample(rng);
         let preferred = phase.preferred_mode();
 
@@ -305,10 +402,7 @@ impl GpsTraceGenerator {
     /// Walking: 0.83-1.67 m/s (3-6 km/h).
     /// Driving: 8.33-22.22 m/s (30-80 km/h).
     /// Stationary: 0-0.3 m/s (GPS drift).
-    fn speed_for_mode(
-        mode: MovementMode,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> f64 {
+    fn speed_for_mode(mode: MovementMode, rng: &mut (impl RngCore + CryptoRng)) -> f64 {
         let (lo, hi) = match mode {
             MovementMode::Stationary => (0.0, 0.3),
             MovementMode::Walking => (0.83, 1.67),
@@ -318,10 +412,7 @@ impl GpsTraceGenerator {
     }
 
     /// Time between fixes in seconds, based on mode.
-    fn time_step_secs(
-        mode: MovementMode,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> i64 {
+    fn time_step_secs(mode: MovementMode, rng: &mut (impl RngCore + CryptoRng)) -> i64 {
         match mode {
             MovementMode::Stationary => Uniform::new_inclusive(30i64, 300).sample(rng),
             MovementMode::Walking => Uniform::new_inclusive(5i64, 30).sample(rng),
@@ -330,10 +421,7 @@ impl GpsTraceGenerator {
     }
 
     /// Number of points in one movement segment.
-    fn segment_length(
-        mode: MovementMode,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> u32 {
+    fn segment_length(mode: MovementMode, rng: &mut (impl RngCore + CryptoRng)) -> u32 {
         match mode {
             MovementMode::Stationary => Uniform::new_inclusive(5u32, 30).sample(rng),
             MovementMode::Walking => Uniform::new_inclusive(10u32, 50).sample(rng),
@@ -400,8 +488,7 @@ impl GpsTraceGenerator {
                     let dt_secs = Self::time_step_secs(self.current_mode, rng);
 
                     let prev_bearing = self.last_bearing.unwrap_or(0.0);
-                    let bearing_drift =
-                        Uniform::new_inclusive(-30.0f64, 30.0).sample(rng);
+                    let bearing_drift = Uniform::new_inclusive(-30.0f64, 30.0).sample(rng);
                     let bearing = (prev_bearing + bearing_drift).rem_euclid(360.0);
 
                     let bearing_rad = bearing.to_radians();
@@ -415,8 +502,7 @@ impl GpsTraceGenerator {
                     let new_lon = Self::wrap_lon(prev_lon + dlon);
 
                     let prev_alt = self.last_altitude.unwrap_or(100.0);
-                    let alt_drift =
-                        Uniform::new_inclusive(-3.0f64, 3.0).sample(rng);
+                    let alt_drift = Uniform::new_inclusive(-3.0f64, 3.0).sample(rng);
                     let altitude = (prev_alt + alt_drift).clamp(0.0, 3000.0);
 
                     let prev_ts = self.last_timestamp.unwrap_or(context.now);
@@ -425,20 +511,14 @@ impl GpsTraceGenerator {
                     (new_lat, new_lon, bearing, altitude, timestamp)
                 } else {
                     // First point: seed from a random city center
-                    let city = CITY_POOL
-                        .choose(rng)
-                        .unwrap_or(&CITY_POOL[0]);
+                    let city = CITY_POOL.choose(rng).unwrap_or(&CITY_POOL[0]);
                     // Small offset from exact center (up to ~2 km)
-                    let lat_offset =
-                        Uniform::new_inclusive(-0.02f64, 0.02).sample(rng);
-                    let lon_offset =
-                        Uniform::new_inclusive(-0.02f64, 0.02).sample(rng);
+                    let lat_offset = Uniform::new_inclusive(-0.02f64, 0.02).sample(rng);
+                    let lon_offset = Uniform::new_inclusive(-0.02f64, 0.02).sample(rng);
                     let lat = Self::clamp_lat(city.lat + lat_offset);
                     let lon = Self::wrap_lon(city.lon + lon_offset);
-                    let bearing =
-                        Uniform::new_inclusive(0.0f64, 359.99).sample(rng);
-                    let altitude =
-                        Uniform::new_inclusive(0.0f64, 500.0).sample(rng);
+                    let bearing = Uniform::new_inclusive(0.0f64, 359.99).sample(rng);
+                    let altitude = Uniform::new_inclusive(0.0f64, 500.0).sample(rng);
 
                     (lat, lon, bearing, altitude, context.now)
                 };
@@ -448,12 +528,7 @@ impl GpsTraceGenerator {
             let accuracy = accuracy_jitter(indoor, rng);
             let speed = Self::speed_for_mode(self.current_mode, rng);
 
-            let meta = ArtifactMetadata::new(
-                DataCategory::Location,
-                timestamp,
-                timestamp,
-                192,
-            )?;
+            let meta = ArtifactMetadata::new(DataCategory::Location, timestamp, timestamp, 192)?;
 
             let entry = GpsPoint {
                 meta,
@@ -542,12 +617,7 @@ impl DataGenerator for GpsTraceGenerator {
         let accuracy = accuracy_jitter(indoor, rng);
         let speed = Self::speed_for_mode(mode, rng);
 
-        let meta = ArtifactMetadata::new(
-            DataCategory::Location,
-            context.now,
-            context.now,
-            192,
-        )?;
+        let meta = ArtifactMetadata::new(DataCategory::Location, context.now, context.now, 192)?;
 
         let entry = GpsPoint {
             meta,
@@ -629,9 +699,9 @@ mod tests {
         let first = &entries[0];
 
         // Must be within ~0.03 degrees (~3 km) of at least one city center
-        let near_any_city = CITY_POOL.iter().any(|c| {
-            (first.lat - c.lat).abs() < 0.03 && (first.lon - c.lon).abs() < 0.03
-        });
+        let near_any_city = CITY_POOL
+            .iter()
+            .any(|c| (first.lat - c.lat).abs() < 0.03 && (first.lon - c.lon).abs() < 0.03);
         assert!(near_any_city, "first point must be near a seed city");
     }
 

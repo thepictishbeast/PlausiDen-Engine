@@ -1,9 +1,9 @@
 //! Distribution sampler — weighted random selection for realistic behavior.
 
 use rand::Rng;
-use rand::seq::SliceRandom;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 
 /// A weighted item.
@@ -82,11 +82,17 @@ impl<T: Clone> Distribution<T> {
     /// Sample without replacement.
     pub fn sample_many(&mut self, n: usize) -> Vec<&T> {
         let mut results = Vec::new();
-        let mut remaining: Vec<(f64, usize)> = self.items.iter().enumerate()
-            .map(|(i, item)| (item.weight, i)).collect();
+        let mut remaining: Vec<(f64, usize)> = self
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| (item.weight, i))
+            .collect();
         let mut total = self.total_weight;
         for _ in 0..n.min(self.items.len()) {
-            if total <= 0.0 { break; }
+            if total <= 0.0 {
+                break;
+            }
             let mut target: f64 = self.rng.r#gen::<f64>() * total;
             let mut chosen = None;
             for (idx, (w, orig_idx)) in remaining.iter().enumerate() {
@@ -132,7 +138,9 @@ impl<T: Clone> Distribution<T> {
 
     /// Normalize weights so they sum to 1.0.
     pub fn normalize(&mut self) {
-        if self.total_weight == 0.0 { return; }
+        if self.total_weight == 0.0 {
+            return;
+        }
         for item in &mut self.items {
             item.weight /= self.total_weight;
         }

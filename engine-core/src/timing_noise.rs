@@ -4,8 +4,8 @@
 
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 
 /// Timing noise distribution.
@@ -18,7 +18,10 @@ pub enum NoiseModel {
     /// Exponential inter-arrival times (Poisson process) — mean seconds.
     Exponential { mean_secs: f64 },
     /// Piecewise: slow at night, fast during active hours.
-    Diurnal { peak_hours: Vec<u8>, off_peak_factor: f64 },
+    Diurnal {
+        peak_hours: Vec<u8>,
+        off_peak_factor: f64,
+    },
 }
 
 /// Timing noise injector.
@@ -28,18 +31,24 @@ pub struct TimingNoiser {
 
 impl TimingNoiser {
     pub fn new(seed: u64) -> Self {
-        Self { rng: StdRng::seed_from_u64(seed) }
+        Self {
+            rng: StdRng::seed_from_u64(seed),
+        }
     }
 
     pub fn from_entropy() -> Self {
-        Self { rng: StdRng::from_entropy() }
+        Self {
+            rng: StdRng::from_entropy(),
+        }
     }
 
     /// Generate a noise delta in seconds.
     pub fn sample_delta_secs(&mut self, model: &NoiseModel) -> i64 {
         match model {
             NoiseModel::Uniform { min, max } => {
-                if max <= min { return *min; }
+                if max <= min {
+                    return *min;
+                }
                 self.rng.r#gen_range(*min..=*max)
             }
             NoiseModel::Gaussian { std_dev_secs } => {
@@ -73,7 +82,11 @@ impl TimingNoiser {
 
     /// Compute an activity weight for a given hour (used by schedulers).
     pub fn diurnal_weight(&self, ts: &DateTime<Utc>, model: &NoiseModel) -> f64 {
-        if let NoiseModel::Diurnal { peak_hours, off_peak_factor } = model {
+        if let NoiseModel::Diurnal {
+            peak_hours,
+            off_peak_factor,
+        } = model
+        {
             if self.in_peak_hours(ts, peak_hours) {
                 1.0
             } else {
@@ -85,7 +98,12 @@ impl TimingNoiser {
     }
 
     /// Generate a sequence of N jittered timestamps starting from `base`.
-    pub fn sequence(&mut self, base: DateTime<Utc>, count: usize, model: &NoiseModel) -> Vec<DateTime<Utc>> {
+    pub fn sequence(
+        &mut self,
+        base: DateTime<Utc>,
+        count: usize,
+        model: &NoiseModel,
+    ) -> Vec<DateTime<Utc>> {
         let mut out = Vec::with_capacity(count);
         let mut cursor = base;
         for _ in 0..count {
@@ -165,7 +183,10 @@ mod tests {
     fn test_diurnal_weight() {
         let n = TimingNoiser::new(42);
         let ts = Utc::now().with_hour(10).unwrap();
-        let model = NoiseModel::Diurnal { peak_hours: vec![9, 10, 11], off_peak_factor: 0.1 };
+        let model = NoiseModel::Diurnal {
+            peak_hours: vec![9, 10, 11],
+            off_peak_factor: 0.1,
+        };
         assert_eq!(n.diurnal_weight(&ts, &model), 1.0);
 
         let ts_off = Utc::now().with_hour(3).unwrap();

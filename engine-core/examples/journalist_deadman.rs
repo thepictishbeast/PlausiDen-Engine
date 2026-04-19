@@ -29,12 +29,10 @@
 //!   a seeded ChaCha20 RNG for reproducibility. In production, use
 //!   `OsRng`.
 
-use engine_core::deadman::{self, DeadmanConfig, DeadmanStatus, TriggerAction};
-use engine_core::duress::{
-    self, DuressConfig, DuressEntry, DuressResponse, VerifyOutcome,
-};
-use engine_core::erasure::{ErasableKey, ErasureReason, KeyId};
 use ed25519_dalek::SigningKey;
+use engine_core::deadman::{self, DeadmanConfig, DeadmanStatus, TriggerAction};
+use engine_core::duress::{self, DuressConfig, DuressEntry, DuressResponse, VerifyOutcome};
+use engine_core::erasure::{ErasableKey, ErasureReason, KeyId};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
@@ -93,7 +91,10 @@ fn main() {
     match out {
         VerifyOutcome::Duress(DuressResponse::SilentErase { key_ids }) => {
             println!("[2b] Duress unlock → VerifyOutcome::Duress(SilentErase)");
-            println!("     Host would now call ErasableKey::erase() on: {:?}\n", key_ids);
+            println!(
+                "     Host would now call ErasableKey::erase() on: {:?}\n",
+                key_ids
+            );
         }
         other => panic!("example expected Duress(SilentErase), got {other:?}"),
     }
@@ -108,8 +109,8 @@ fn main() {
     //    24h, fire a Composite action — EraseKey + AlertContacts.
     // ---------------------------------------------------------------
     let mut deadman_cfg = DeadmanConfig {
-        dead_seconds: 24 * 3600,     // 24h silence → fire
-        warning_seconds: 4 * 3600,   // 4h before: warn user
+        dead_seconds: 24 * 3600,   // 24h silence → fire
+        warning_seconds: 4 * 3600, // 4h before: warn user
         action: TriggerAction::Composite(vec![
             TriggerAction::EraseKey {
                 key_ids: vec![key_id.clone()],
@@ -122,9 +123,12 @@ fn main() {
         armed: false,
     };
 
-    let t0 = 1_700_000_000i64;   // a fixed "now" for the demo.
+    let t0 = 1_700_000_000i64; // a fixed "now" for the demo.
     deadman_cfg.arm(t0);
-    println!("[3] Deadman armed at t0={} (dead_seconds=86400, warn_seconds=14400)", t0);
+    println!(
+        "[3] Deadman armed at t0={} (dead_seconds=86400, warn_seconds=14400)",
+        t0
+    );
 
     // Hour 1: Fresh (nothing to do).
     match deadman::evaluate(&deadman_cfg, t0 + 3_600) {
@@ -135,7 +139,10 @@ fn main() {
     // Hour 21: Warning (under 4h remain). Host should nudge the user.
     match deadman::evaluate(&deadman_cfg, t0 + 21 * 3_600) {
         DeadmanStatus::Warning { remaining } => {
-            println!("[3b] t0+21h → Warning (remaining={}s) — UI should prompt check-in", remaining);
+            println!(
+                "[3b] t0+21h → Warning (remaining={}s) — UI should prompt check-in",
+                remaining
+            );
         }
         other => panic!("expected Warning, got {other:?}"),
     }

@@ -106,10 +106,21 @@ const LANGUAGES: &[&str] = &["en", "en-US", "es", "fr", "de", "pt", "ja", "zh", 
 
 /// Common product names for cart/wishlist data.
 const PRODUCT_NAMES: &[&str] = &[
-    "Wireless Headphones", "USB-C Cable", "Laptop Stand", "Mechanical Keyboard",
-    "Mouse Pad", "Monitor Light Bar", "Webcam HD", "Phone Case",
-    "Screen Protector", "Desk Organizer", "Travel Mug", "Notebook",
-    "Backpack", "Water Bottle", "Bluetooth Speaker",
+    "Wireless Headphones",
+    "USB-C Cable",
+    "Laptop Stand",
+    "Mechanical Keyboard",
+    "Mouse Pad",
+    "Monitor Light Bar",
+    "Webcam HD",
+    "Phone Case",
+    "Screen Protector",
+    "Desk Organizer",
+    "Travel Mug",
+    "Notebook",
+    "Backpack",
+    "Water Bottle",
+    "Bluetooth Speaker",
 ];
 
 /// Generates localStorage key-value pairs for websites.
@@ -143,13 +154,17 @@ impl LocalStorageGenerator {
     }
 
     /// Generate a key-value pair for the given storage kind.
-    fn generate_kv(
-        kind: StorageKind,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> (String, String) {
+    fn generate_kv(kind: StorageKind, rng: &mut (impl RngCore + CryptoRng)) -> (String, String) {
         match kind {
             StorageKind::SessionToken => {
-                let keys = ["token", "session_token", "auth_token", "access_token", "jwt", "sid"];
+                let keys = [
+                    "token",
+                    "session_token",
+                    "auth_token",
+                    "access_token",
+                    "jwt",
+                    "sid",
+                ];
                 let key = keys.choose(rng).unwrap_or(&"token");
                 let value = Self::random_hex(32, rng);
                 (key.to_string(), value)
@@ -185,18 +200,18 @@ impl LocalStorageGenerator {
                 match roll {
                     0 => {
                         // Google Analytics _ga format: GA1.2.<random>.<timestamp>
-                        let rand_part = Uniform::new_inclusive(100_000_000u64, 9_999_999_999u64)
-                            .sample(rng);
-                        let ts_part = Uniform::new_inclusive(1_600_000_000u64, 1_750_000_000u64)
-                            .sample(rng);
+                        let rand_part =
+                            Uniform::new_inclusive(100_000_000u64, 9_999_999_999u64).sample(rng);
+                        let ts_part =
+                            Uniform::new_inclusive(1_600_000_000u64, 1_750_000_000u64).sample(rng);
                         ("_ga".to_string(), format!("GA1.2.{rand_part}.{ts_part}"))
                     }
                     1 => {
                         // Google Analytics _gid
-                        let rand_part = Uniform::new_inclusive(100_000_000u64, 9_999_999_999u64)
-                            .sample(rng);
-                        let ts_part = Uniform::new_inclusive(1_600_000_000u64, 1_750_000_000u64)
-                            .sample(rng);
+                        let rand_part =
+                            Uniform::new_inclusive(100_000_000u64, 9_999_999_999u64).sample(rng);
+                        let ts_part =
+                            Uniform::new_inclusive(1_600_000_000u64, 1_750_000_000u64).sample(rng);
                         ("_gid".to_string(), format!("GA1.2.{rand_part}.{ts_part}"))
                     }
                     _ => {
@@ -213,17 +228,11 @@ impl LocalStorageGenerator {
                         "cookie_consent".to_string(),
                         r#"{"necessary":true,"analytics":true,"marketing":false}"#.to_string(),
                     ),
-                    1 => (
-                        "gdpr_consent".to_string(),
-                        "accepted".to_string(),
-                    ),
+                    1 => ("gdpr_consent".to_string(), "accepted".to_string()),
                     _ => {
-                        let ts = Uniform::new_inclusive(1_700_000_000u64, 1_750_000_000u64)
-                            .sample(rng);
-                        (
-                            "consent_timestamp".to_string(),
-                            ts.to_string(),
-                        )
+                        let ts =
+                            Uniform::new_inclusive(1_700_000_000u64, 1_750_000_000u64).sample(rng);
+                        ("consent_timestamp".to_string(), ts.to_string())
                     }
                 }
             }
@@ -290,11 +299,7 @@ impl DataGenerator for LocalStorageGenerator {
             .ok_or_else(|| EngineError::InvalidContext("no URLs for category".to_string()))?;
 
         // localStorage origin is scheme + host (no path)
-        let origin = base_url
-            .split('/')
-            .take(3)
-            .collect::<Vec<_>>()
-            .join("/");
+        let origin = base_url.split('/').take(3).collect::<Vec<_>>().join("/");
 
         let kind = Self::choose_storage_kind(rng);
         let (key, value) = Self::generate_kv(kind, rng);
@@ -432,7 +437,14 @@ mod tests {
         // Check that at least one key from each storage kind appeared
         let expected_keys = [
             // SessionToken keys
-            vec!["token", "session_token", "auth_token", "access_token", "jwt", "sid"],
+            vec![
+                "token",
+                "session_token",
+                "auth_token",
+                "access_token",
+                "jwt",
+                "sid",
+            ],
             // UserPreference keys
             vec!["theme", "language", "notifications_enabled", "font_size"],
             // AnalyticsId keys
@@ -448,8 +460,7 @@ mod tests {
             assert!(
                 group_found,
                 "no keys from group {:?} were generated in 500 entries (saw: {:?})",
-                group,
-                seen_keys,
+                group, seen_keys,
             );
         }
     }

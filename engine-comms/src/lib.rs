@@ -4,8 +4,8 @@
 //! realistic names and phone numbers, call logs following circadian patterns,
 //! and related messaging artifacts.
 
-pub mod calls;
 pub mod calendar;
+pub mod calls;
 pub mod contacts;
 pub mod email_headers;
 pub mod notifications;

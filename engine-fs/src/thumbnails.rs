@@ -83,8 +83,15 @@ const THUMB_SOURCES: &[ThumbSource] = &[
     ThumbSource {
         dir: "/home/user/Pictures",
         names: &[
-            "vacation", "family_photo", "selfie", "landscape", "sunset",
-            "group_pic", "birthday", "IMG_20250315", "IMG_20241122",
+            "vacation",
+            "family_photo",
+            "selfie",
+            "landscape",
+            "sunset",
+            "group_pic",
+            "birthday",
+            "IMG_20250315",
+            "IMG_20241122",
             "screenshot_2025",
         ],
         ext: "jpg",
@@ -93,7 +100,11 @@ const THUMB_SOURCES: &[ThumbSource] = &[
     ThumbSource {
         dir: "/home/user/Pictures",
         names: &[
-            "screenshot", "wallpaper", "diagram", "infographic", "banner",
+            "screenshot",
+            "wallpaper",
+            "diagram",
+            "infographic",
+            "banner",
         ],
         ext: "png",
         mime: "image/png",
@@ -101,8 +112,13 @@ const THUMB_SOURCES: &[ThumbSource] = &[
     ThumbSource {
         dir: "/home/user/Documents",
         names: &[
-            "report", "invoice", "contract", "resume", "cover_letter",
-            "tax_return", "manual",
+            "report",
+            "invoice",
+            "contract",
+            "resume",
+            "cover_letter",
+            "tax_return",
+            "manual",
         ],
         ext: "pdf",
         mime: "application/pdf",
@@ -110,7 +126,10 @@ const THUMB_SOURCES: &[ThumbSource] = &[
     ThumbSource {
         dir: "/home/user/Videos",
         names: &[
-            "clip", "recording", "tutorial", "presentation_recording",
+            "clip",
+            "recording",
+            "tutorial",
+            "presentation_recording",
             "screen_capture",
         ],
         ext: "mp4",
@@ -118,17 +137,13 @@ const THUMB_SOURCES: &[ThumbSource] = &[
     },
     ThumbSource {
         dir: "/home/user/Downloads",
-        names: &[
-            "downloaded_image", "attachment", "scan", "photo_received",
-        ],
+        names: &["downloaded_image", "attachment", "scan", "photo_received"],
         ext: "jpg",
         mime: "image/jpeg",
     },
     ThumbSource {
         dir: "/home/user/Documents",
-        names: &[
-            "spreadsheet", "budget", "grades", "schedule",
-        ],
+        names: &["spreadsheet", "budget", "grades", "schedule"],
         ext: "xlsx",
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     },
@@ -234,7 +249,8 @@ impl DataGenerator for ThumbnailCacheGenerator {
 
         // Thumbnail PNG size: typically 5-50 KiB.
         let thumb_size = Uniform::new_inclusive(5_000u64, 50_000).sample(rng);
-        let meta = ArtifactMetadata::new(DataCategory::FileSystem, cached_at, cached_at, thumb_size)?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::FileSystem, cached_at, cached_at, thumb_size)?;
 
         let entry = ThumbnailCacheEntry {
             meta,

@@ -18,10 +18,7 @@ pub enum SeedChainError {
     /// Deriving this child would create a cycle in the seed graph
     /// (parent label is already an ancestor of itself through the
     /// proposed edge).
-    WouldCreateCycle {
-        parent: String,
-        child: String,
-    },
+    WouldCreateCycle { parent: String, child: String },
 }
 
 impl std::fmt::Display for SeedChainError {
@@ -59,12 +56,15 @@ impl SeedChain {
             seeds: HashMap::new(),
             root,
         };
-        chain.seeds.insert("root".into(), Seed {
-            label: "root".into(),
-            seed: root,
-            parent: None,
-            depth: 0,
-        });
+        chain.seeds.insert(
+            "root".into(),
+            Seed {
+                label: "root".into(),
+                seed: root,
+                parent: None,
+                depth: 0,
+            },
+        );
         chain
     }
 
@@ -166,7 +166,9 @@ impl SeedChain {
         self.seeds.len()
     }
 
-    pub fn is_empty(&self) -> bool { self.seeds.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.seeds.is_empty()
+    }
 
     /// Root seed value.
     pub fn root(&self) -> u64 {
@@ -180,7 +182,8 @@ impl SeedChain {
 
     /// Children of a given seed.
     pub fn children_of(&self, parent_label: &str) -> Vec<&Seed> {
-        self.seeds.values()
+        self.seeds
+            .values()
             .filter(|s| s.parent.as_deref() == Some(parent_label))
             .collect()
     }

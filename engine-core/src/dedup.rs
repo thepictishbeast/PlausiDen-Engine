@@ -90,12 +90,16 @@ impl ArtifactDeduplicator {
                     // Within the window — check repeat cap.
                     if rec.count >= self.policy.max_repeats {
                         self.suppressed += 1;
-                        return DedupResult::Suppressed { reason: SuppressReason::MaxRepeats };
+                        return DedupResult::Suppressed {
+                            reason: SuppressReason::MaxRepeats,
+                        };
                     }
                     rec.count += 1;
                     rec.last_seen = now;
                     self.suppressed += 1;
-                    return DedupResult::Suppressed { reason: SuppressReason::ExactMatch };
+                    return DedupResult::Suppressed {
+                        reason: SuppressReason::ExactMatch,
+                    };
                 } else {
                     // Outside window — reset.
                     rec.count = 1;
@@ -184,7 +188,12 @@ mod tests {
         let mut d = ArtifactDeduplicator::new(DedupPolicy::default());
         d.check("browser", b"same");
         let result = d.check("browser", b"same");
-        assert_eq!(result, DedupResult::Suppressed { reason: SuppressReason::ExactMatch });
+        assert_eq!(
+            result,
+            DedupResult::Suppressed {
+                reason: SuppressReason::ExactMatch
+            }
+        );
     }
 
     #[test]
@@ -205,7 +214,12 @@ mod tests {
         d.check("x", b"a");
         d.check("x", b"a"); // count=2
         let result = d.check("x", b"a"); // suppressed — at cap
-        assert_eq!(result, DedupResult::Suppressed { reason: SuppressReason::MaxRepeats });
+        assert_eq!(
+            result,
+            DedupResult::Suppressed {
+                reason: SuppressReason::MaxRepeats
+            }
+        );
     }
 
     #[test]

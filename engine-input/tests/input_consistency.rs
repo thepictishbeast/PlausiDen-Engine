@@ -120,16 +120,8 @@ fn mouse_coordinates_within_1920x1080() {
         assert_eq!(entry.screen_height, 1080);
 
         for (i, evt) in entry.events.iter().enumerate() {
-            assert!(
-                evt.x <= 1920,
-                "seed {seed}, event {i}: x {} > 1920",
-                evt.x,
-            );
-            assert!(
-                evt.y <= 1080,
-                "seed {seed}, event {i}: y {} > 1080",
-                evt.y,
-            );
+            assert!(evt.x <= 1920, "seed {seed}, event {i}: x {} > 1920", evt.x,);
+            assert!(evt.y <= 1080, "seed {seed}, event {i}: y {} > 1080", evt.y,);
             for (j, pt) in evt.trajectory.iter().enumerate() {
                 assert!(
                     pt.x <= 1920,
@@ -165,8 +157,8 @@ fn gesture_touch_point_count_matches_type() {
             GestureType::PinchZoomIn | GestureType::PinchZoomOut => Some(2),
             GestureType::TwoFingerRotate => Some(2),
             GestureType::ThreeFingerSwipe => Some(3),
-            GestureType::EdgeSwipe => None,       // >= 1
-            GestureType::PalmRejection => None,    // >= 3
+            GestureType::EdgeSwipe => None,     // >= 1
+            GestureType::PalmRejection => None, // >= 3
         };
 
         let count = entry.touch_points.len();
@@ -211,7 +203,10 @@ fn all_timestamps_monotonically_increasing() {
 
         // Keystrokes: press_time_ms must be monotonic
         let ks = deserialize_keystrokes(
-            keystroke_gen.generate(&profile, &ctx, &mut rng).unwrap().as_ref(),
+            keystroke_gen
+                .generate(&profile, &ctx, &mut rng)
+                .unwrap()
+                .as_ref(),
         );
         for w in ks.keystrokes.windows(2) {
             assert!(
@@ -225,7 +220,10 @@ fn all_timestamps_monotonically_increasing() {
         // Touch: timestamp_ms must be monotonic
         let mut rng = seeded_rng(seed + 10_000);
         let te = deserialize_touch(
-            touch_gen.generate(&profile, &ctx, &mut rng).unwrap().as_ref(),
+            touch_gen
+                .generate(&profile, &ctx, &mut rng)
+                .unwrap()
+                .as_ref(),
         );
         for w in te.events.windows(2) {
             assert!(
@@ -239,7 +237,10 @@ fn all_timestamps_monotonically_increasing() {
         // Mouse: timestamp_ms must be monotonic
         let mut rng = seeded_rng(seed + 20_000);
         let me = deserialize_mouse(
-            mouse_gen.generate(&profile, &ctx, &mut rng).unwrap().as_ref(),
+            mouse_gen
+                .generate(&profile, &ctx, &mut rng)
+                .unwrap()
+                .as_ref(),
         );
         for w in me.events.windows(2) {
             assert!(

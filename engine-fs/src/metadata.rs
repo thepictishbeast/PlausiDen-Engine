@@ -118,8 +118,13 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
     MetadataTemplate {
         dir: "/home/user/Downloads",
         names: &[
-            "invoice", "receipt", "manual", "whitepaper", "form",
-            "specification", "datasheet",
+            "invoice",
+            "receipt",
+            "manual",
+            "whitepaper",
+            "form",
+            "specification",
+            "datasheet",
         ],
         ext: "pdf",
         perms: "-rw-r--r--",
@@ -132,9 +137,7 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
     // Downloaded images.
     MetadataTemplate {
         dir: "/home/user/Downloads",
-        names: &[
-            "photo", "image", "attachment", "scan", "capture",
-        ],
+        names: &["photo", "image", "attachment", "scan", "capture"],
         ext: "jpg",
         perms: "-rw-r--r--",
         mode: "0644",
@@ -284,7 +287,9 @@ impl DataGenerator for FileMetadataGenerator {
 
         // Inode: realistic range for ext4/btrfs.
         let inode = Uniform::new_inclusive(100_000u64, 9_999_999).sample(rng);
-        let hard_links = if tpl.ext.is_empty() { 1 } else {
+        let hard_links = if tpl.ext.is_empty() {
+            1
+        } else {
             if rng.gen_bool(0.1) { 2 } else { 1 }
         };
 
@@ -293,8 +298,7 @@ impl DataGenerator for FileMetadataGenerator {
         let created = context.now - Duration::days(days_ago);
 
         // Modified: between created and now.
-        let mod_offset_secs =
-            Uniform::new_inclusive(0i64, days_ago * 86400).sample(rng);
+        let mod_offset_secs = Uniform::new_inclusive(0i64, days_ago * 86400).sample(rng);
         let modified = created + Duration::seconds(mod_offset_secs);
 
         // Accessed: recently (within last 30 days), but not before created.
@@ -328,9 +332,7 @@ impl DataGenerator for FileMetadataGenerator {
             if rng.gen_bool(0.7) {
                 let referrer = REFERRER_PAGES
                     .choose(rng)
-                    .ok_or_else(|| {
-                        EngineError::InvalidContext("no referrer pages".into())
-                    })?;
+                    .ok_or_else(|| EngineError::InvalidContext("no referrer pages".into()))?;
                 xattrs.push(XAttr {
                     name: "user.xdg.referrer.url".to_string(),
                     value: (*referrer).to_string(),
@@ -364,12 +366,7 @@ impl DataGenerator for FileMetadataGenerator {
         }
 
         let meta_size = 256 + (xattrs.len() as u64 * 64);
-        let meta = ArtifactMetadata::new(
-            DataCategory::FileSystem,
-            created,
-            modified,
-            meta_size,
-        )?;
+        let meta = ArtifactMetadata::new(DataCategory::FileSystem, created, modified, meta_size)?;
 
         let entry = FileMetadataEntry {
             meta,
@@ -457,7 +454,10 @@ mod tests {
                 break;
             }
         }
-        assert!(found_origin, "at least one file should have download origin xattr");
+        assert!(
+            found_origin,
+            "at least one file should have download origin xattr"
+        );
     }
 
     #[test]
@@ -474,16 +474,15 @@ mod tests {
             let bytes = artifact.to_bytes().expect("serialization failed");
             let entry: FileMetadataEntry =
                 serde_json::from_slice(&bytes).expect("deserialization failed");
-            if entry
-                .xattrs
-                .iter()
-                .any(|xa| xa.name == "user.creator_app")
-            {
+            if entry.xattrs.iter().any(|xa| xa.name == "user.creator_app") {
                 found_creator = true;
                 break;
             }
         }
-        assert!(found_creator, "at least one file should have creator_app xattr");
+        assert!(
+            found_creator,
+            "at least one file should have creator_app xattr"
+        );
     }
 
     #[test]

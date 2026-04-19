@@ -224,7 +224,12 @@ const SAFARI_17: BrowserProfile = BrowserProfile {
         EXT_PSK_KEY_EXCHANGE_MODES,
         EXT_KEY_SHARE,
     ],
-    supported_groups: &[GROUP_X25519, GROUP_SECP256R1, GROUP_SECP384R1, GROUP_SECP521R1],
+    supported_groups: &[
+        GROUP_X25519,
+        GROUP_SECP256R1,
+        GROUP_SECP384R1,
+        GROUP_SECP521R1,
+    ],
     known_ja3: "d311137c12fe9c937d49ff590818b827",
 };
 
@@ -372,7 +377,11 @@ fn compute_ja4(profile: &BrowserProfile, sni: &str) -> String {
 
     let mut hasher = Md5::new();
     hasher.update(cipher_str.as_bytes());
-    let cipher_hash: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    let cipher_hash: String = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     let cipher_hash_trunc = &cipher_hash[..12];
 
     // Sorted extensions for hash stability.
@@ -386,10 +395,16 @@ fn compute_ja4(profile: &BrowserProfile, sni: &str) -> String {
 
     let mut hasher = Md5::new();
     hasher.update(ext_str.as_bytes());
-    let ext_hash: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    let ext_hash: String = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     let ext_hash_trunc = &ext_hash[..12];
 
-    format!("{proto}{version}{sni_flag}{cipher_count}{ext_count}_{cipher_hash_trunc}_{ext_hash_trunc}")
+    format!(
+        "{proto}{version}{sni_flag}{cipher_count}{ext_count}_{cipher_hash_trunc}_{ext_hash_trunc}"
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -434,10 +449,7 @@ impl Artifact for TlsEntry {
         }
         if self.ja3_hash.len() != 32 {
             return Err(EngineError::ImplausibleArtifact {
-                reason: format!(
-                    "JA3 hash must be 32 hex chars, got {}",
-                    self.ja3_hash.len()
-                ),
+                reason: format!("JA3 hash must be 32 hex chars, got {}", self.ja3_hash.len()),
             });
         }
         if self.handshake_time_ms > 10_000 {
@@ -556,12 +568,8 @@ impl DataGenerator for TlsGenerator {
         let timestamp = context.now - Duration::seconds(jitter);
 
         let estimated_size = server_name.len() as u64 + ja3_hash.len() as u64 + 256;
-        let meta = ArtifactMetadata::new(
-            DataCategory::Network,
-            timestamp,
-            timestamp,
-            estimated_size,
-        )?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::Network, timestamp, timestamp, estimated_size)?;
 
         let entry = TlsEntry {
             meta,

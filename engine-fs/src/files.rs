@@ -90,8 +90,8 @@ struct DocTemplate {
 const BASE_TEMPLATES: &[DocTemplate] = &[
     DocTemplate {
         prefixes: &[
-            "Report", "Summary", "Notes", "Draft", "Memo", "Letter",
-            "Proposal", "Overview", "Review", "Outline",
+            "Report", "Summary", "Notes", "Draft", "Memo", "Letter", "Proposal", "Overview",
+            "Review", "Outline",
         ],
         ext: "docx",
         mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -102,8 +102,15 @@ const BASE_TEMPLATES: &[DocTemplate] = &[
     },
     DocTemplate {
         prefixes: &[
-            "Budget", "Expenses", "Inventory", "Timesheet", "Forecast",
-            "Sales_Data", "Metrics", "Headcount", "Revenue",
+            "Budget",
+            "Expenses",
+            "Inventory",
+            "Timesheet",
+            "Forecast",
+            "Sales_Data",
+            "Metrics",
+            "Headcount",
+            "Revenue",
         ],
         ext: "xlsx",
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -114,8 +121,13 @@ const BASE_TEMPLATES: &[DocTemplate] = &[
     },
     DocTemplate {
         prefixes: &[
-            "Presentation", "Slides", "Pitch", "Meeting_Deck",
-            "Quarterly_Review", "Training", "Onboarding",
+            "Presentation",
+            "Slides",
+            "Pitch",
+            "Meeting_Deck",
+            "Quarterly_Review",
+            "Training",
+            "Onboarding",
         ],
         ext: "pptx",
         mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -126,8 +138,16 @@ const BASE_TEMPLATES: &[DocTemplate] = &[
     },
     DocTemplate {
         prefixes: &[
-            "Invoice", "Receipt", "Contract", "Agreement", "Form",
-            "Manual", "Guide", "Whitepaper", "Specification", "Certificate",
+            "Invoice",
+            "Receipt",
+            "Contract",
+            "Agreement",
+            "Form",
+            "Manual",
+            "Guide",
+            "Whitepaper",
+            "Specification",
+            "Certificate",
         ],
         ext: "pdf",
         mime: "application/pdf",
@@ -139,58 +159,65 @@ const BASE_TEMPLATES: &[DocTemplate] = &[
 ];
 
 /// Additional templates for journalist profiles.
-const JOURNALIST_TEMPLATES: &[DocTemplate] = &[
-    DocTemplate {
-        prefixes: &[
-            "Article_Draft", "Interview_Transcript", "Source_Notes",
-            "Investigation", "Press_Release", "Briefing",
-        ],
-        ext: "docx",
-        mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        min_bytes: 20_000,
-        max_bytes: 500_000,
-        dirs: &["~/Documents", "~/Documents/Articles"],
-        app: "libreoffice",
-    },
-];
+const JOURNALIST_TEMPLATES: &[DocTemplate] = &[DocTemplate {
+    prefixes: &[
+        "Article_Draft",
+        "Interview_Transcript",
+        "Source_Notes",
+        "Investigation",
+        "Press_Release",
+        "Briefing",
+    ],
+    ext: "docx",
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    min_bytes: 20_000,
+    max_bytes: 500_000,
+    dirs: &["~/Documents", "~/Documents/Articles"],
+    app: "libreoffice",
+}];
 
 /// Additional templates for student profiles.
-const STUDENT_TEMPLATES: &[DocTemplate] = &[
-    DocTemplate {
-        prefixes: &[
-            "Essay", "Assignment", "Lab_Report", "Thesis_Chapter",
-            "Study_Notes", "Homework", "Term_Paper",
-        ],
-        ext: "docx",
-        mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        min_bytes: 10_000,
-        max_bytes: 300_000,
-        dirs: &["~/Documents", "~/Documents/School", "~/Desktop"],
-        app: "libreoffice",
-    },
-];
+const STUDENT_TEMPLATES: &[DocTemplate] = &[DocTemplate {
+    prefixes: &[
+        "Essay",
+        "Assignment",
+        "Lab_Report",
+        "Thesis_Chapter",
+        "Study_Notes",
+        "Homework",
+        "Term_Paper",
+    ],
+    ext: "docx",
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    min_bytes: 10_000,
+    max_bytes: 300_000,
+    dirs: &["~/Documents", "~/Documents/School", "~/Desktop"],
+    app: "libreoffice",
+}];
 
 /// Additional templates for tech worker profiles.
-const TECH_TEMPLATES: &[DocTemplate] = &[
-    DocTemplate {
-        prefixes: &[
-            "Architecture", "Design_Doc", "RFC", "Postmortem",
-            "Runbook", "API_Spec", "Migration_Plan",
-        ],
-        ext: "pdf",
-        mime: "application/pdf",
-        min_bytes: 50_000,
-        max_bytes: 5_000_000,
-        dirs: &["~/Documents", "~/Downloads"],
-        app: "evince",
-    },
-];
+const TECH_TEMPLATES: &[DocTemplate] = &[DocTemplate {
+    prefixes: &[
+        "Architecture",
+        "Design_Doc",
+        "RFC",
+        "Postmortem",
+        "Runbook",
+        "API_Spec",
+        "Migration_Plan",
+    ],
+    ext: "pdf",
+    mime: "application/pdf",
+    min_bytes: 50_000,
+    max_bytes: 5_000_000,
+    dirs: &["~/Documents", "~/Downloads"],
+    app: "evince",
+}];
 
 /// Qualifying suffixes appended to filenames for variety.
 const SUFFIXES: &[&str] = &[
-    "Q1", "Q2", "Q3", "Q4", "Final", "v2", "v3", "Draft",
-    "Revised", "2024", "2025", "2026", "January", "February",
-    "March", "April", "May",
+    "Q1", "Q2", "Q3", "Q4", "Final", "v2", "v3", "Draft", "Revised", "2024", "2025", "2026",
+    "January", "February", "March", "April", "May",
 ];
 
 /// Collect all applicable templates for the given user profile.
@@ -277,8 +304,7 @@ impl DataGenerator for RecentDocumentsGenerator {
         // never before creation.
         let days_ago_created = Uniform::new_inclusive(1i64, 180).sample(rng);
         let created = context.now - Duration::days(days_ago_created);
-        let mod_offset_secs =
-            Uniform::new_inclusive(0i64, days_ago_created * 86400).sample(rng);
+        let mod_offset_secs = Uniform::new_inclusive(0i64, days_ago_created * 86400).sample(rng);
         let modified = created + Duration::seconds(mod_offset_secs);
         let max_access_ago = 14i64.min(days_ago_created);
         let access_days_ago = Uniform::new_inclusive(0i64, max_access_ago).sample(rng);
@@ -321,8 +347,12 @@ mod tests {
         let profile = UserProfile::default();
         let ctx = GenerationContext::new();
         let mut rng = seeded_rng(42);
-        let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation failed");
-        artifact.validate_plausibility().expect("plausibility failed");
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .expect("generation failed");
+        artifact
+            .validate_plausibility()
+            .expect("plausibility failed");
         let bytes = artifact.to_bytes().expect("serialization failed");
         let entry: RecentDocumentEntry =
             serde_json::from_slice(&bytes).expect("deserialization failed");
@@ -340,7 +370,9 @@ mod tests {
         let valid_exts = ["docx", "xlsx", "pptx", "pdf"];
         for seed in 0..100 {
             let mut rng = seeded_rng(seed);
-            let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation failed");
+            let artifact = generator
+                .generate(&profile, &ctx, &mut rng)
+                .expect("generation failed");
             let bytes = artifact.to_bytes().expect("serialization failed");
             let entry: RecentDocumentEntry =
                 serde_json::from_slice(&bytes).expect("deserialization failed");
@@ -362,7 +394,9 @@ mod tests {
         let mut found_article = false;
         for seed in 0..300 {
             let mut rng = seeded_rng(seed);
-            let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation failed");
+            let artifact = generator
+                .generate(&profile, &ctx, &mut rng)
+                .expect("generation failed");
             let bytes = artifact.to_bytes().expect("serialization failed");
             let entry: RecentDocumentEntry =
                 serde_json::from_slice(&bytes).expect("deserialization failed");
@@ -371,7 +405,10 @@ mod tests {
                 break;
             }
         }
-        assert!(found_article, "journalist profile should produce article/interview docs");
+        assert!(
+            found_article,
+            "journalist profile should produce article/interview docs"
+        );
     }
 
     #[test]

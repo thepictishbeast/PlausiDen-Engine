@@ -75,8 +75,10 @@ impl Artifact for HistoryEntry {
         }
 
         // If transition is Link or SearchResult, referrer should exist
-        if matches!(self.transition, TransitionType::Link | TransitionType::SearchResult)
-            && self.referrer.is_none()
+        if matches!(
+            self.transition,
+            TransitionType::Link | TransitionType::SearchResult
+        ) && self.referrer.is_none()
         {
             return Err(EngineError::ImplausibleArtifact {
                 reason: "link/search transition without referrer".to_string(),
@@ -113,9 +115,7 @@ impl HistoryGenerator {
             .or_else(|| url.strip_prefix("http://"))
         {
             let parts: Vec<&str> = domain.splitn(2, '/').collect();
-            let domain_name = parts[0]
-                .strip_prefix("www.")
-                .unwrap_or(parts[0]);
+            let domain_name = parts[0].strip_prefix("www.").unwrap_or(parts[0]);
 
             if parts.len() > 1 && !parts[1].is_empty() {
                 let path = parts[1]
@@ -205,8 +205,8 @@ impl DataGenerator for HistoryGenerator {
         };
 
         // Build referrer chain — use recent URLs if available
-        let has_referrer = !self.recent_urls.is_empty()
-            && Uniform::new_inclusive(0u32, 3).sample(rng) > 0;
+        let has_referrer =
+            !self.recent_urls.is_empty() && Uniform::new_inclusive(0u32, 3).sample(rng) > 0;
         let referrer = if has_referrer {
             self.recent_urls.last().cloned()
         } else {
@@ -216,20 +216,14 @@ impl DataGenerator for HistoryGenerator {
         let transition = Self::choose_transition(referrer.is_some(), rng);
 
         // Timestamp: slightly before "now" in context, with jitter
-        let jitter_secs = Uniform::new_inclusive(0i64, 300)
-            
-            .sample(rng);
+        let jitter_secs = Uniform::new_inclusive(0i64, 300).sample(rng);
         let visit_time = context.now - Duration::seconds(jitter_secs);
 
         // Visit count: usually 1-5, occasionally higher for frequently visited sites
         let visit_count = if Uniform::new_inclusive(0u32, 9).sample(rng) > 7 {
-            Uniform::new_inclusive(5u32, 50)
-                
-                .sample(rng)
+            Uniform::new_inclusive(5u32, 50).sample(rng)
         } else {
-            Uniform::new_inclusive(1u32, 5)
-                
-                .sample(rng)
+            Uniform::new_inclusive(1u32, 5).sample(rng)
         };
 
         let title = Self::title_from_url(&url);
@@ -322,7 +316,10 @@ mod tests {
             }
         }
 
-        assert!(has_referrer, "at least some entries should have referrers after building history");
+        assert!(
+            has_referrer,
+            "at least some entries should have referrers after building history"
+        );
     }
 
     #[test]
@@ -437,8 +434,8 @@ mod tests {
         let mut rng = seeded_rng(42);
         let mut generator = HistoryGenerator::new();
 
-        let mut low_count = 0u32;   // 1-5
-        let mut high_count = 0u32;  // 5-50
+        let mut low_count = 0u32; // 1-5
+        let mut high_count = 0u32; // 5-50
 
         for _ in 0..1000u64 {
             let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();

@@ -354,12 +354,8 @@ impl DataGenerator for SyslogGenerator {
         let timestamp = context.now - Duration::seconds(jitter_secs);
 
         let estimated_size = message.len() as u64 + 160; // metadata overhead
-        let meta = ArtifactMetadata::new(
-            DataCategory::System,
-            timestamp,
-            timestamp,
-            estimated_size,
-        )?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::System, timestamp, timestamp, estimated_size)?;
 
         let entry = SyslogEntry {
             meta,
@@ -572,12 +568,8 @@ mod tests {
         );
         let mut rng1 = seeded_rng(999);
         let mut rng2 = seeded_rng(999);
-        let a1 = generator
-            .generate(&profile, &ctx, &mut rng1)
-            .expect("ok");
-        let a2 = generator
-            .generate(&profile, &ctx, &mut rng2)
-            .expect("ok");
+        let a1 = generator.generate(&profile, &ctx, &mut rng1).expect("ok");
+        let a2 = generator.generate(&profile, &ctx, &mut rng2).expect("ok");
         // Compare via deserialized fields (UUID is non-deterministic).
         let e1: SyslogEntry =
             serde_json::from_slice(&a1.to_bytes().expect("serialize")).expect("deser");
@@ -588,13 +580,7 @@ mod tests {
         assert_eq!(e1.hostname, e2.hostname);
         assert_eq!(e1.pid, e2.pid);
         assert_eq!(e1.timestamp, e2.timestamp);
-        assert_eq!(
-            format!("{:?}", e1.facility),
-            format!("{:?}", e2.facility)
-        );
-        assert_eq!(
-            format!("{:?}", e1.severity),
-            format!("{:?}", e2.severity)
-        );
+        assert_eq!(format!("{:?}", e1.facility), format!("{:?}", e2.facility));
+        assert_eq!(format!("{:?}", e1.severity), format!("{:?}", e2.severity));
     }
 }

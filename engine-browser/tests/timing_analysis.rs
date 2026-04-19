@@ -5,9 +5,9 @@
 //! distinguish which generator is running or what data is being produced.
 //! These tests verify timing consistency.
 
-use engine_browser::{HistoryGenerator, CookieGenerator, SearchGenerator};
 use engine_browser::bookmarks::BookmarkGenerator;
 use engine_browser::downloads::DownloadGenerator;
+use engine_browser::{CookieGenerator, HistoryGenerator, SearchGenerator};
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
@@ -111,7 +111,11 @@ fn test_no_seed_correlated_timing() {
     let late_mean = late_times.iter().sum::<f64>() / 100.0;
 
     // Means should be within 2x of each other
-    let ratio = if early_mean > late_mean { early_mean / late_mean } else { late_mean / early_mean };
+    let ratio = if early_mean > late_mean {
+        early_mean / late_mean
+    } else {
+        late_mean / early_mean
+    };
     assert!(
         ratio < 2.0,
         "timing correlates with seed value: early={early_mean:.0}us late={late_mean:.0}us ratio={ratio:.2}",

@@ -185,16 +185,12 @@ pub fn one_sided_normal_sf(z: f64) -> f64 {
     // Abramowitz & Stegun 26.2.17. Good for |z| < 7.
     let z_abs = z.abs();
     let t = 1.0 / (1.0 + 0.2316419 * z_abs);
-    let poly = t * (0.319381530
-        + t * (-0.356563782
-            + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+    let poly = t
+        * (0.319381530
+            + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
     let pdf = (-0.5 * z_abs * z_abs).exp() / (2.0 * std::f64::consts::PI).sqrt();
     let tail = pdf * poly;
-    if z >= 0.0 {
-        tail
-    } else {
-        1.0 - tail
-    }
+    if z >= 0.0 { tail } else { 1.0 - tail }
 }
 
 /// Kullback–Leibler divergence between two discrete distributions
@@ -473,6 +469,9 @@ mod tests {
     fn test_feature_vector_mismatched_lengths_l2_infinity() {
         let a = v(&[1.0, 2.0]);
         let b = v(&[1.0, 2.0, 3.0]);
-        assert_eq!(NearestNeighbourDistinguisher::l2_distance(&a, &b), f64::INFINITY);
+        assert_eq!(
+            NearestNeighbourDistinguisher::l2_distance(&a, &b),
+            f64::INFINITY
+        );
     }
 }

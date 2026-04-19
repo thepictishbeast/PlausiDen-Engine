@@ -8,12 +8,8 @@
 //!
 //! Authored: Claude 3, 2026-04-17.
 
-use engine_core::deadman::{
-    evaluate, DeadmanConfig, DeadmanStatus, TriggerAction,
-};
-use engine_core::duress::{
-    verify, DuressConfig, DuressEntry, DuressResponse, VerifyOutcome,
-};
+use engine_core::deadman::{DeadmanConfig, DeadmanStatus, TriggerAction, evaluate};
+use engine_core::duress::{DuressConfig, DuressEntry, DuressResponse, VerifyOutcome, verify};
 use engine_core::erasure::{ErasableKey, ErasureReason, ErasureReceipt, KeyId};
 
 use ed25519_dalek::SigningKey;
@@ -31,8 +27,8 @@ fn deadman_fires_trigger_erasure() {
 
     // Configure a deadman that erases THIS key on expiry.
     let mut cfg = DeadmanConfig {
-        dead_seconds: 3600,     // 1 hour
-        warning_seconds: 300,   // 5 min warning threshold
+        dead_seconds: 3600,   // 1 hour
+        warning_seconds: 300, // 5 min warning threshold
         action: TriggerAction::EraseKey {
             key_ids: vec![key_id],
         },
@@ -62,12 +58,7 @@ fn deadman_fires_trigger_erasure() {
 
     // Host dispatcher hands the key to erase(), receives a receipt.
     let sk = SigningKey::generate(&mut OsRng);
-    let receipt = ErasureReceipt::sign(
-        key_id,
-        now as i64,
-        ErasureReason::Deadman,
-        &sk,
-    );
+    let receipt = ErasureReceipt::sign(key_id, now as i64, ErasureReason::Deadman, &sk);
 
     // Receipt verifies with the signing key's public half.
     receipt

@@ -26,14 +26,38 @@ fn default_ctx() -> (UserProfile, GenerationContext) {
 
 /// The same phone pool embedded in `calls.rs` and `sms.rs`.
 const KNOWN_PHONE_POOL: &[&str] = &[
-    "(202) 555-0147", "(312) 555-0198", "(415) 555-0123", "(718) 555-0176",
-    "(213) 555-0134", "(305) 555-0189", "(404) 555-0156", "(617) 555-0112",
-    "(503) 555-0167", "(512) 555-0143", "(206) 555-0178", "(303) 555-0121",
-    "(614) 555-0195", "(704) 555-0132", "(919) 555-0187", "(602) 555-0154",
-    "(480) 555-0116", "(816) 555-0169", "(314) 555-0141", "(612) 555-0193",
-    "(913) 555-0128", "(408) 555-0185", "(510) 555-0152", "(916) 555-0117",
-    "(720) 555-0163", "(469) 555-0139", "(972) 555-0191", "(678) 555-0126",
-    "(770) 555-0183", "(407) 555-0148", "(813) 555-0114", "(757) 555-0165",
+    "(202) 555-0147",
+    "(312) 555-0198",
+    "(415) 555-0123",
+    "(718) 555-0176",
+    "(213) 555-0134",
+    "(305) 555-0189",
+    "(404) 555-0156",
+    "(617) 555-0112",
+    "(503) 555-0167",
+    "(512) 555-0143",
+    "(206) 555-0178",
+    "(303) 555-0121",
+    "(614) 555-0195",
+    "(704) 555-0132",
+    "(919) 555-0187",
+    "(602) 555-0154",
+    "(480) 555-0116",
+    "(816) 555-0169",
+    "(314) 555-0141",
+    "(612) 555-0193",
+    "(913) 555-0128",
+    "(408) 555-0185",
+    "(510) 555-0152",
+    "(916) 555-0117",
+    "(720) 555-0163",
+    "(469) 555-0139",
+    "(972) 555-0191",
+    "(678) 555-0126",
+    "(770) 555-0183",
+    "(407) 555-0148",
+    "(813) 555-0114",
+    "(757) 555-0165",
 ];
 
 #[test]
@@ -293,18 +317,14 @@ fn test_calendar_all_day_span() {
             );
             // All-day events should be Birthday or Holiday.
             assert!(
-                entry.event_type == EventType::Birthday
-                    || entry.event_type == EventType::Holiday,
+                entry.event_type == EventType::Birthday || entry.event_type == EventType::Holiday,
                 "all-day event {i}: unexpected type {:?}",
                 entry.event_type,
             );
         }
     }
 
-    assert!(
-        found_all_day,
-        "no all-day events generated in 1000 entries",
-    );
+    assert!(found_all_day, "no all-day events generated in 1000 entries",);
 }
 
 // ---------------------------------------------------------------------------
@@ -324,8 +344,18 @@ fn test_contact_creation_dates_multi_month() {
         let bytes = a.to_bytes().unwrap();
         let entry: ContactEntry = serde_json::from_slice(&bytes).unwrap();
 
-        let year = entry.created_at.format("%Y").to_string().parse::<i32>().unwrap();
-        let month = entry.created_at.format("%m").to_string().parse::<u32>().unwrap();
+        let year = entry
+            .created_at
+            .format("%Y")
+            .to_string()
+            .parse::<i32>()
+            .unwrap();
+        let month = entry
+            .created_at
+            .format("%m")
+            .to_string()
+            .parse::<u32>()
+            .unwrap();
         months_seen.insert((year, month));
     }
 

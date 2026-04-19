@@ -368,12 +368,14 @@ mod tests {
             "[A-Z]{2}",
             arb_occupation(),
         )
-            .prop_map(|(age_range, language, country, occupation)| DemographicProfile {
-                age_range,
-                language,
-                country,
-                occupation,
-            })
+            .prop_map(
+                |(age_range, language, country, occupation)| DemographicProfile {
+                    age_range,
+                    language,
+                    country,
+                    occupation,
+                },
+            )
     }
 
     fn arb_device() -> impl Strategy<Value = DeviceProfile> {
@@ -415,16 +417,16 @@ mod tests {
             prop::collection::vec(arb_interest(), 0..6),
             arb_risk_level(),
         )
-            .prop_map(|(demographic, device, activity_schedule, interests, risk_level)| {
-                UserProfile {
+            .prop_map(
+                |(demographic, device, activity_schedule, interests, risk_level)| UserProfile {
                     demographic,
                     device,
                     activity_schedule,
                     locale: Locale::default(),
                     interests,
                     risk_level,
-                }
-            })
+                },
+            )
     }
 
     proptest! {
@@ -454,14 +456,15 @@ mod tests {
 
         assert!(low < medium, "Low ({low}) must be < Medium ({medium})");
         assert!(medium < high, "Medium ({medium}) must be < High ({high})");
-        assert!(high < maximum, "High ({high}) must be < Maximum ({maximum})");
+        assert!(
+            high < maximum,
+            "High ({high}) must be < Maximum ({maximum})"
+        );
     }
 
     #[test]
     fn test_empty_interests_is_valid_profile() {
-        let profile = UserProfileBuilder::new()
-            .interests(vec![])
-            .build();
+        let profile = UserProfileBuilder::new().interests(vec![]).build();
         assert!(profile.interests.is_empty());
         // Should still serialize cleanly
         let json = serde_json::to_string(&profile).unwrap();

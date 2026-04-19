@@ -52,15 +52,15 @@ impl OrganicScheduler {
         // with a negative TZ offset got the lowest possible activity
         // factor every hour of the day. `is_active_hour` already
         // uses `rem_euclid(24)`; this code was the lone holdout.
-        let adjusted_hour = (hour as i16 + self.schedule.timezone_offset_hours as i16)
-            .rem_euclid(24) as u8;
+        let adjusted_hour =
+            (hour as i16 + self.schedule.timezone_offset_hours as i16).rem_euclid(24) as u8;
 
         // Base interval in seconds — varies by risk level
         let base_interval_secs = match self.risk_level {
-            RiskLevel::Low => 300.0,     // ~5 minutes
-            RiskLevel::Medium => 120.0,  // ~2 minutes
-            RiskLevel::High => 30.0,     // ~30 seconds
-            RiskLevel::Maximum => 5.0,   // ~5 seconds
+            RiskLevel::Low => 300.0,    // ~5 minutes
+            RiskLevel::Medium => 120.0, // ~2 minutes
+            RiskLevel::High => 30.0,    // ~30 seconds
+            RiskLevel::Maximum => 5.0,  // ~5 seconds
         };
 
         // Activity multiplier based on time of day (circadian rhythm)
@@ -296,7 +296,10 @@ mod tests {
 
         assert_eq!(timestamps.len(), 1500);
         for window in timestamps.windows(2) {
-            assert!(window[1] > window[0], "timestamps must be strictly ordered even in long sessions");
+            assert!(
+                window[1] > window[0],
+                "timestamps must be strictly ordered even in long sessions"
+            );
         }
         // First timestamp should be after start
         assert!(timestamps[0] > start);
@@ -337,11 +340,20 @@ mod tests {
         let now = Utc::now();
         let schedule = ActivitySchedule::default();
 
-        for risk in [RiskLevel::Low, RiskLevel::Medium, RiskLevel::High, RiskLevel::Maximum] {
+        for risk in [
+            RiskLevel::Low,
+            RiskLevel::Medium,
+            RiskLevel::High,
+            RiskLevel::Maximum,
+        ] {
             let scheduler = OrganicScheduler::new(schedule.clone(), risk);
             let mut rng = test_rng();
             let t = scheduler.next_timestamp(now, &mut rng);
-            assert!(t > now, "risk level {:?} must produce future timestamps", risk);
+            assert!(
+                t > now,
+                "risk level {:?} must produce future timestamps",
+                risk
+            );
         }
     }
 

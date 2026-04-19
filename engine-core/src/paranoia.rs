@@ -324,8 +324,8 @@ mod tests {
         // "exceeds 10 MB limit".
         let blob = vec![0xFFu8; 11 * 1024 * 1024];
         let artifact = OversizedMockArtifact { meta, blob };
-        let err = deep_validate_artifact(&artifact)
-            .expect_err("11 MB artifact must fail validation");
+        let err =
+            deep_validate_artifact(&artifact).expect_err("11 MB artifact must fail validation");
         let msg = format!("{err}");
         assert!(
             msg.contains("exceeds 10 MB limit"),

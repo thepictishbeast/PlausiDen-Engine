@@ -95,7 +95,10 @@ impl Artifact for DnsQuery {
         }
         if self.latency_ms > 5000 {
             return Err(EngineError::ImplausibleArtifact {
-                reason: format!("DNS latency {}ms exceeds 5s plausibility limit", self.latency_ms),
+                reason: format!(
+                    "DNS latency {}ms exceeds 5s plausibility limit",
+                    self.latency_ms
+                ),
             });
         }
         if self.ttl == 0 {
@@ -301,23 +304,16 @@ impl DnsQueryGenerator {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Option<String> {
         match query_type {
-            DnsQueryType::A => {
-                Some(format!(
-                    "{}.{}.{}.{}",
-                    Uniform::new_inclusive(1u8, 223).sample(rng),
-                    Uniform::new_inclusive(0u8, 255).sample(rng),
-                    Uniform::new_inclusive(0u8, 255).sample(rng),
-                    Uniform::new_inclusive(1u8, 254).sample(rng),
-                ))
-            }
+            DnsQueryType::A => Some(format!(
+                "{}.{}.{}.{}",
+                Uniform::new_inclusive(1u8, 223).sample(rng),
+                Uniform::new_inclusive(0u8, 255).sample(rng),
+                Uniform::new_inclusive(0u8, 255).sample(rng),
+                Uniform::new_inclusive(1u8, 254).sample(rng),
+            )),
             DnsQueryType::AAAA => {
                 let segments: Vec<String> = (0..8)
-                    .map(|_| {
-                        format!(
-                            "{:x}",
-                            Uniform::new_inclusive(0u16, 0xffff).sample(rng)
-                        )
-                    })
+                    .map(|_| format!("{:x}", Uniform::new_inclusive(0u16, 0xffff).sample(rng)))
                     .collect();
                 Some(segments.join(":"))
             }
@@ -329,26 +325,17 @@ impl DnsQueryGenerator {
     ///
     /// Infrastructure and CDN domains have long TTLs (hours to days).
     /// Browsing and social media domains have shorter TTLs (minutes to hours).
-    fn compute_ttl(
-        category: DomainCategory,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> u32 {
+    fn compute_ttl(category: DomainCategory, rng: &mut (impl RngCore + CryptoRng)) -> u32 {
         match category {
-            DomainCategory::Infrastructure => {
-                Uniform::new_inclusive(3600u32, 86400).sample(rng)
-            }
-            DomainCategory::Cdn => {
-                Uniform::new_inclusive(1800u32, 86400).sample(rng)
-            }
+            DomainCategory::Infrastructure => Uniform::new_inclusive(3600u32, 86400).sample(rng),
+            DomainCategory::Cdn => Uniform::new_inclusive(1800u32, 86400).sample(rng),
             DomainCategory::AdNetwork | DomainCategory::Prefetch => {
                 Uniform::new_inclusive(60u32, 3600).sample(rng)
             }
             DomainCategory::SearchEngine
             | DomainCategory::SocialMedia
             | DomainCategory::News
-            | DomainCategory::GeneralBrowsing => {
-                Uniform::new_inclusive(30u32, 7200).sample(rng)
-            }
+            | DomainCategory::GeneralBrowsing => Uniform::new_inclusive(30u32, 7200).sample(rng),
         }
     }
 
@@ -357,10 +344,7 @@ impl DnsQueryGenerator {
     /// Simulates cache behavior: ~60% of queries hit the local resolver cache
     /// (0-3ms), while cache misses require recursive resolution (5-200ms).
     /// Prefetch queries are almost always cached.
-    fn compute_latency(
-        category: DomainCategory,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> u32 {
+    fn compute_latency(category: DomainCategory, rng: &mut (impl RngCore + CryptoRng)) -> u32 {
         let cache_hit_threshold = match category {
             DomainCategory::Prefetch => 85,
             DomainCategory::Infrastructure | DomainCategory::Cdn => 70,
@@ -390,9 +374,9 @@ impl DataGenerator for DnsQueryGenerator {
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
-        let (domain, category) = select_domain(rng).ok_or_else(|| EngineError::InvalidContext(
-            "empty domain pool (should be unreachable)".into(),
-        ))?;
+        let (domain, category) = select_domain(rng).ok_or_else(|| {
+            EngineError::InvalidContext("empty domain pool (should be unreachable)".into())
+        })?;
 
         let query_type = Self::pick_query_type(rng);
         let response_ip = Self::make_response_ip(query_type, rng);
@@ -410,12 +394,8 @@ impl DataGenerator for DnsQueryGenerator {
         let timestamp = context.now - Duration::seconds(jitter);
 
         let estimated_size = (domain.len() + 96) as u64;
-        let meta = ArtifactMetadata::new(
-            DataCategory::Network,
-            timestamp,
-            timestamp,
-            estimated_size,
-        )?;
+        let meta =
+            ArtifactMetadata::new(DataCategory::Network, timestamp, timestamp, estimated_size)?;
 
         let entry = DnsQuery {
             meta,
@@ -455,8 +435,12 @@ mod tests {
         let ctx = GenerationContext::new();
         let mut rng = seeded_rng(42);
 
-        let artifact = generator.generate(&profile, &ctx, &mut rng).expect("generation failed");
-        artifact.validate_plausibility().expect("plausibility check failed");
+        let artifact = generator
+            .generate(&profile, &ctx, &mut rng)
+            .expect("generation failed");
+        artifact
+            .validate_plausibility()
+            .expect("plausibility check failed");
 
         let bytes = artifact.to_bytes().expect("serialization failed");
         let entry: DnsQuery = serde_json::from_slice(&bytes).expect("deserialization failed");
@@ -544,7 +528,10 @@ mod tests {
                 found_a = true;
             }
         }
-        assert!(found_a, "should generate at least one A record in 500 queries");
+        assert!(
+            found_a,
+            "should generate at least one A record in 500 queries"
+        );
     }
 
     #[test]

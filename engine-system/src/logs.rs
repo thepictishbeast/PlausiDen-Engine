@@ -44,14 +44,20 @@ pub enum LogSeverity {
 }
 
 impl Artifact for LogEntry {
-    fn metadata(&self) -> &ArtifactMetadata { &self.meta }
+    fn metadata(&self) -> &ArtifactMetadata {
+        &self.meta
+    }
     fn validate_plausibility(&self) -> Result<()> {
         self.meta.validate_timestamps()?;
         if self.message.is_empty() {
-            return Err(EngineError::ImplausibleArtifact { reason: "empty log message".into() });
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "empty log message".into(),
+            });
         }
         if self.source.is_empty() {
-            return Err(EngineError::ImplausibleArtifact { reason: "empty log source".into() });
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "empty log source".into(),
+            });
         }
         Ok(())
     }
@@ -71,7 +77,9 @@ struct LogTemplate {
 fn log_templates() -> Vec<LogTemplate> {
     vec![
         LogTemplate {
-            facility: "kern", source: "kernel", severity: LogSeverity::Info,
+            facility: "kern",
+            source: "kernel",
+            severity: LogSeverity::Info,
             messages: &[
                 "usb 2-1: new high-speed USB device number 3 using xhci_hcd",
                 "usb 2-1: USB disconnect, device number 3",
@@ -82,7 +90,9 @@ fn log_templates() -> Vec<LogTemplate> {
             pid_range: (0, 0),
         },
         LogTemplate {
-            facility: "auth", source: "sshd", severity: LogSeverity::Info,
+            facility: "auth",
+            source: "sshd",
+            severity: LogSeverity::Info,
             messages: &[
                 "Accepted publickey for user from 192.168.1.100 port 52431 ssh2",
                 "pam_unix(sshd:session): session opened for user(uid=1000) by (uid=0)",
@@ -93,7 +103,9 @@ fn log_templates() -> Vec<LogTemplate> {
             pid_range: (800, 900),
         },
         LogTemplate {
-            facility: "daemon", source: "systemd", severity: LogSeverity::Info,
+            facility: "daemon",
+            source: "systemd",
+            severity: LogSeverity::Info,
             messages: &[
                 "Started Daily apt download activities.",
                 "Starting Daily Cleanup of Temporary Directories...",
@@ -106,7 +118,9 @@ fn log_templates() -> Vec<LogTemplate> {
             pid_range: (1, 1),
         },
         LogTemplate {
-            facility: "daemon", source: "NetworkManager", severity: LogSeverity::Info,
+            facility: "daemon",
+            source: "NetworkManager",
+            severity: LogSeverity::Info,
             messages: &[
                 "<info>  NetworkManager state is now CONNECTED_GLOBAL",
                 "<info>  device (wlan0): state change: activated -> deactivating",
@@ -116,7 +130,9 @@ fn log_templates() -> Vec<LogTemplate> {
             pid_range: (500, 600),
         },
         LogTemplate {
-            facility: "cron", source: "CRON", severity: LogSeverity::Info,
+            facility: "cron",
+            source: "CRON",
+            severity: LogSeverity::Info,
             messages: &[
                 "(root) CMD (/usr/lib/apt/apt.systemd.daily install)",
                 "(root) CMD (test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily ))",
@@ -125,7 +141,9 @@ fn log_templates() -> Vec<LogTemplate> {
             pid_range: (10000, 30000),
         },
         LogTemplate {
-            facility: "daemon", source: "dockerd", severity: LogSeverity::Info,
+            facility: "daemon",
+            source: "dockerd",
+            severity: LogSeverity::Info,
             messages: &[
                 "Container started: abc123def456",
                 "Container stopped: abc123def456",
@@ -134,7 +152,9 @@ fn log_templates() -> Vec<LogTemplate> {
             pid_range: (700, 800),
         },
         LogTemplate {
-            facility: "auth", source: "sudo", severity: LogSeverity::Notice,
+            facility: "auth",
+            source: "sudo",
+            severity: LogSeverity::Notice,
             messages: &[
                 "user : TTY=pts/0 ; PWD=/home/user ; USER=root ; COMMAND=/usr/bin/apt update",
                 "user : TTY=pts/1 ; PWD=/home/user ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx",
@@ -147,13 +167,28 @@ fn log_templates() -> Vec<LogTemplate> {
 
 /// Generates system log entries.
 pub struct LogGenerator;
-impl LogGenerator { pub fn new() -> Self { Self } }
-impl Default for LogGenerator { fn default() -> Self { Self::new() } }
+impl LogGenerator {
+    pub fn new() -> Self {
+        Self
+    }
+}
+impl Default for LogGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DataGenerator for LogGenerator {
-    fn generate(&self, _profile: &UserProfile, context: &GenerationContext, rng: &mut (impl RngCore + CryptoRng)) -> Result<Box<dyn Artifact>> {
+    fn generate(
+        &self,
+        _profile: &UserProfile,
+        context: &GenerationContext,
+        rng: &mut (impl RngCore + CryptoRng),
+    ) -> Result<Box<dyn Artifact>> {
         let templates = log_templates();
-        let template = templates.choose(rng).ok_or_else(|| EngineError::InvalidContext("no log templates".into()))?;
+        let template = templates
+            .choose(rng)
+            .ok_or_else(|| EngineError::InvalidContext("no log templates".into()))?;
 
         // SAFETY: every log template's `messages` slice is non-empty by
         // construction in log_templates(); the template was just
@@ -173,21 +208,31 @@ impl DataGenerator for LogGenerator {
         let timestamp = context.now - Duration::seconds(jitter);
 
         let meta = ArtifactMetadata::new(
-            DataCategory::System, timestamp, timestamp,
+            DataCategory::System,
+            timestamp,
+            timestamp,
             message.len() as u64 + 128,
         )?;
 
         let entry = LogEntry {
-            meta, timestamp, facility: template.facility.to_string(),
-            severity: template.severity.clone(), source: template.source.to_string(),
-            pid, message: message.to_string(),
+            meta,
+            timestamp,
+            facility: template.facility.to_string(),
+            severity: template.severity.clone(),
+            source: template.source.to_string(),
+            pid,
+            message: message.to_string(),
         };
         entry.validate_plausibility()?;
         Ok(Box::new(entry))
     }
 
-    fn category(&self) -> DataCategory { DataCategory::System }
-    fn forensic_weight(&self) -> u32 { 60 }
+    fn category(&self) -> DataCategory {
+        DataCategory::System
+    }
+    fn forensic_weight(&self) -> u32 {
+        60
+    }
 }
 
 #[cfg(test)]
@@ -216,7 +261,10 @@ mod tests {
         let c = GenerationContext::new();
         for s in 0..1000 {
             let mut r = seeded_rng(s);
-            g.generate(&p, &c, &mut r).unwrap().validate_plausibility().unwrap();
+            g.generate(&p, &c, &mut r)
+                .unwrap()
+                .validate_plausibility()
+                .unwrap();
         }
     }
 
@@ -231,7 +279,10 @@ mod tests {
             let a = g.generate(&p, &c, &mut r).unwrap();
             let b = a.to_bytes().unwrap();
             let e: LogEntry = serde_json::from_slice(&b).unwrap();
-            if e.facility == "auth" { found = true; break; }
+            if e.facility == "auth" {
+                found = true;
+                break;
+            }
         }
         assert!(found, "should include auth facility logs");
     }
@@ -249,6 +300,9 @@ mod tests {
             let e: LogEntry = serde_json::from_slice(&b).unwrap();
             severities.insert(format!("{:?}", e.severity));
         }
-        assert!(severities.len() >= 2, "should have multiple severity levels");
+        assert!(
+            severities.len() >= 2,
+            "should have multiple severity levels"
+        );
     }
 }

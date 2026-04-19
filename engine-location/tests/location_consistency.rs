@@ -21,16 +21,16 @@ const US_LON_MAX: f64 = -66.9;
 
 /// Known US carrier (MCC, MNC) pairs.
 const KNOWN_US_MCC_MNC: &[(u16, u16)] = &[
-    (310, 260),  // T-Mobile
-    (310, 410),  // AT&T
-    (311, 480),  // Verizon
-    (310, 120),  // Sprint
-    (310, 150),  // Cricket
-    (311, 580),  // US Cellular
-    (310, 030),  // AT&T (Centennial)
-    (311, 490),  // Verizon (LTE)
-    (310, 160),  // T-Mobile (Metro)
-    (310, 770),  // i-wireless
+    (310, 260), // T-Mobile
+    (310, 410), // AT&T
+    (311, 480), // Verizon
+    (310, 120), // Sprint
+    (310, 150), // Cricket
+    (311, 580), // US Cellular
+    (310, 030), // AT&T (Centennial)
+    (311, 490), // Verizon (LTE)
+    (310, 160), // T-Mobile (Metro)
+    (310, 770), // i-wireless
 ];
 
 fn default_profile() -> UserProfile {
@@ -164,8 +164,7 @@ fn exif_gps_matches_gps_geographic_region() {
     let mut rng = seeded_rng(12345);
     let gps_artifact = gps_gen.generate(&profile, &ctx, &mut rng).unwrap();
     let gps_bytes = gps_artifact.to_bytes().unwrap();
-    let gps_entry: engine_location::GpsPoint =
-        serde_json::from_slice(&gps_bytes).unwrap();
+    let gps_entry: engine_location::GpsPoint = serde_json::from_slice(&gps_bytes).unwrap();
 
     let mut rng2 = seeded_rng(12345);
     let exif_artifact = exif_gen.generate(&profile, &ctx, &mut rng2).unwrap();
@@ -273,8 +272,7 @@ fn all_location_timestamps_within_same_window() {
         let mut rng = seeded_rng(seed);
         let artifact = gps_gen.generate(&profile, &ctx, &mut rng).unwrap();
         let bytes = artifact.to_bytes().unwrap();
-        let entry: engine_location::GpsPoint =
-            serde_json::from_slice(&bytes).unwrap();
+        let entry: engine_location::GpsPoint = serde_json::from_slice(&bytes).unwrap();
 
         let drift = (entry.timestamp - reference_now).num_seconds().abs();
         assert!(

@@ -66,7 +66,7 @@ impl SessionTopic {
     pub fn typical_dwell_secs(&self, rng: &mut (impl RngCore + CryptoRng)) -> u32 {
         let (min, max) = match self {
             Self::QuickCheck => (3, 15),
-            Self::DeepReading => (30, 300),  // 30s to 5min
+            Self::DeepReading => (30, 300), // 30s to 5min
             Self::Shopping => (10, 120),
             Self::Social => (5, 60),
             Self::SearchResearch => (5, 45),
@@ -117,9 +117,7 @@ pub fn zipf_rank_probability(rank: u32, total_items: u32) -> f64 {
     let numerator = 1.0 / (rank as f64).powf(s);
 
     // Harmonic number H(N,s)
-    let harmonic: f64 = (1..=total_items)
-        .map(|k| 1.0 / (k as f64).powf(s))
-        .sum();
+    let harmonic: f64 = (1..=total_items).map(|k| 1.0 / (k as f64).powf(s)).sum();
 
     numerator / harmonic
 }
@@ -150,10 +148,7 @@ pub fn zipf_select<'a, T>(items: &'a [T], rng: &mut (impl RngCore + CryptoRng)) 
 ///
 /// Real users have irregular gaps: short during the day, long overnight,
 /// with occasional multi-hour stretches of no activity.
-pub fn inter_session_gap_secs(
-    hour_of_day: u8,
-    rng: &mut (impl RngCore + CryptoRng),
-) -> u64 {
+pub fn inter_session_gap_secs(hour_of_day: u8, rng: &mut (impl RngCore + CryptoRng)) -> u64 {
     // During active hours: 5-60 minute gaps
     // During evening: 30-120 minute gaps
     // During sleep: 4-8 hour gaps
@@ -190,7 +185,8 @@ mod tests {
         assert!(
             counts[0] > counts[99] * 5,
             "top item ({}) should be 5x+ more frequent than bottom ({})",
-            counts[0], counts[99]
+            counts[0],
+            counts[99]
         );
 
         // Top 10 items should account for >50% of selections

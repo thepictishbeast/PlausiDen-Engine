@@ -221,10 +221,7 @@ impl WifiGenerator {
     }
 
     /// Expand SSID template by replacing "XXXX" with random hex digits.
-    fn expand_ssid_template(
-        template: &str,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) -> String {
+    fn expand_ssid_template(template: &str, rng: &mut (impl RngCore + CryptoRng)) -> String {
         if template.contains("XXXX") {
             let hex: String = (0..4)
                 .map(|_| {
@@ -243,14 +240,10 @@ impl WifiGenerator {
         let roll = Uniform::new_inclusive(0u32, 99).sample(rng);
         if roll < 40 {
             // 2.4 GHz
-            *CHANNELS_24GHZ
-                .choose(rng)
-                .unwrap_or(&1)
+            *CHANNELS_24GHZ.choose(rng).unwrap_or(&1)
         } else {
             // 5 GHz
-            *CHANNELS_5GHZ
-                .choose(rng)
-                .unwrap_or(&36)
+            *CHANNELS_5GHZ.choose(rng).unwrap_or(&36)
         }
     }
 
@@ -298,10 +291,7 @@ impl WifiGenerator {
     /// Initialize persistent home/work networks for this persona.
     ///
     /// Ensures consistent SSID, BSSID, and channel across a session.
-    pub fn init_persistent_networks(
-        &mut self,
-        rng: &mut (impl RngCore + CryptoRng),
-    ) {
+    pub fn init_persistent_networks(&mut self, rng: &mut (impl RngCore + CryptoRng)) {
         if self.home_ssid.is_none() {
             let template = HOME_SSID_TEMPLATES
                 .choose(rng)
@@ -312,9 +302,7 @@ impl WifiGenerator {
             self.home_channel = Some(Self::random_channel(rng));
         }
         if self.work_ssid.is_none() {
-            self.work_ssid = WORK_SSIDS
-                .choose(rng)
-                .map(|s| (*s).to_string());
+            self.work_ssid = WORK_SSIDS.choose(rng).map(|s| (*s).to_string());
             self.work_bssid = Some(Self::random_bssid(rng));
             self.work_channel = Some(Self::random_channel(rng));
         }
@@ -339,38 +327,36 @@ impl DataGenerator for WifiGenerator {
 
         let (ssid, bssid, channel) = match cat {
             NetworkCategory::Home => {
-                let ssid = self
-                    .home_ssid
-                    .clone()
-                    .unwrap_or_else(|| {
-                        let tmpl = HOME_SSID_TEMPLATES
-                            .choose(rng)
-                            .copied()
-                            .unwrap_or("HomeWiFi");
-                        Self::expand_ssid_template(tmpl, rng)
-                    });
+                let ssid = self.home_ssid.clone().unwrap_or_else(|| {
+                    let tmpl = HOME_SSID_TEMPLATES
+                        .choose(rng)
+                        .copied()
+                        .unwrap_or("HomeWiFi");
+                    Self::expand_ssid_template(tmpl, rng)
+                });
                 let bssid = self
                     .home_bssid
                     .clone()
                     .unwrap_or_else(|| Self::random_bssid(rng));
-                let channel = self.home_channel.unwrap_or_else(|| Self::random_channel(rng));
+                let channel = self
+                    .home_channel
+                    .unwrap_or_else(|| Self::random_channel(rng));
                 (ssid, bssid, channel)
             }
             NetworkCategory::Work => {
-                let ssid = self
-                    .work_ssid
-                    .clone()
-                    .unwrap_or_else(|| {
-                        WORK_SSIDS
-                            .choose(rng)
-                            .map(|s| (*s).to_string())
-                            .unwrap_or_else(|| "OfficeNet".to_string())
-                    });
+                let ssid = self.work_ssid.clone().unwrap_or_else(|| {
+                    WORK_SSIDS
+                        .choose(rng)
+                        .map(|s| (*s).to_string())
+                        .unwrap_or_else(|| "OfficeNet".to_string())
+                });
                 let bssid = self
                     .work_bssid
                     .clone()
                     .unwrap_or_else(|| Self::random_bssid(rng));
-                let channel = self.work_channel.unwrap_or_else(|| Self::random_channel(rng));
+                let channel = self
+                    .work_channel
+                    .unwrap_or_else(|| Self::random_channel(rng));
                 (ssid, bssid, channel)
             }
             NetworkCategory::Public => {
@@ -391,9 +377,7 @@ impl DataGenerator for WifiGenerator {
             NetworkCategory::Home | NetworkCategory::Work => {
                 Uniform::new_inclusive(0u32, 99).sample(rng) < 90
             }
-            NetworkCategory::Public => {
-                Uniform::new_inclusive(0u32, 99).sample(rng) < 40
-            }
+            NetworkCategory::Public => Uniform::new_inclusive(0u32, 99).sample(rng) < 40,
         };
 
         // Timestamp with small jitter
@@ -484,7 +468,12 @@ mod tests {
             let sighting: WifiSighting = serde_json::from_slice(&bytes).expect("deser");
 
             let parts: Vec<&str> = sighting.bssid.split(':').collect();
-            assert_eq!(parts.len(), 6, "BSSID must have 6 octets: {}", sighting.bssid);
+            assert_eq!(
+                parts.len(),
+                6,
+                "BSSID must have 6 octets: {}",
+                sighting.bssid
+            );
             for part in &parts {
                 assert_eq!(part.len(), 2, "each octet 2 hex chars: {}", sighting.bssid);
                 assert!(

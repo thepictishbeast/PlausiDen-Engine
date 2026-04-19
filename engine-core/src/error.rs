@@ -59,7 +59,10 @@ mod tests {
         ));
         let s = format!("{e}");
         assert!(s.starts_with("mlock failed:"), "got: {s}");
-        assert!(s.contains("cannot allocate memory"), "wrapped io error lost: {s}");
+        assert!(
+            s.contains("cannot allocate memory"),
+            "wrapped io error lost: {s}"
+        );
         // Source chain should point at the inner io::Error.
         use std::error::Error;
         let src = e.source().expect("MlockFailed should have a source");
@@ -90,8 +93,7 @@ mod tests {
     #[test]
     fn serialization_from_serde_error() {
         // Serialization error auto-converts via #[from]
-        let bad_json: std::result::Result<serde_json::Value, _> =
-            serde_json::from_str("{not json");
+        let bad_json: std::result::Result<serde_json::Value, _> = serde_json::from_str("{not json");
         let err = bad_json.unwrap_err();
         let engine_err: EngineError = err.into();
         assert!(matches!(engine_err, EngineError::Serialization(_)));

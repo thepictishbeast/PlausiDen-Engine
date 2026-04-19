@@ -90,13 +90,25 @@ pub enum NotificationCategory {
 /// Format: `(bundle_id, category)`.
 const APP_CATALOG: &[(&str, NotificationCategory)] = &[
     // Secure messaging — Signal must appear
-    ("org.whispersystems.signal", NotificationCategory::MessagingSecure),
+    (
+        "org.whispersystems.signal",
+        NotificationCategory::MessagingSecure,
+    ),
     ("com.whatsapp", NotificationCategory::MessagingSecure),
-    ("org.telegram.messenger", NotificationCategory::MessagingSecure),
+    (
+        "org.telegram.messenger",
+        NotificationCategory::MessagingSecure,
+    ),
     ("ch.threema.app", NotificationCategory::MessagingSecure),
     // SMS apps
-    ("com.google.android.apps.messaging", NotificationCategory::MessagingSms),
-    ("com.samsung.android.messaging", NotificationCategory::MessagingSms),
+    (
+        "com.google.android.apps.messaging",
+        NotificationCategory::MessagingSms,
+    ),
+    (
+        "com.samsung.android.messaging",
+        NotificationCategory::MessagingSms,
+    ),
     // Team chat
     ("com.slack", NotificationCategory::MessagingTeam),
     ("com.microsoft.teams", NotificationCategory::MessagingTeam),
@@ -298,12 +310,7 @@ impl DataGenerator for NotificationGenerator {
         };
 
         let size = (bundle_id.len() + title.len() + body.len()) as u64 + 128;
-        let meta = ArtifactMetadata::new(
-            DataCategory::Communications,
-            posted_at,
-            posted_at,
-            size,
-        )?;
+        let meta = ArtifactMetadata::new(DataCategory::Communications, posted_at, posted_at, size)?;
 
         let entry = NotificationEntry {
             meta,
@@ -440,8 +447,14 @@ mod tests {
         // plausibility rejects.
         use NotificationCategory::*;
         for c in [
-            MessagingSecure, MessagingSms, MessagingTeam, Email,
-            Social, Financial, Broadcast, System,
+            MessagingSecure,
+            MessagingSms,
+            MessagingTeam,
+            Email,
+            Social,
+            Financial,
+            Broadcast,
+            System,
         ] {
             let p = profile_for(c);
             assert!(!p.titles.is_empty(), "no titles for {c:?}");

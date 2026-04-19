@@ -58,7 +58,12 @@ impl Archetype {
             active_hours: (9..=23).collect(),
             active_days: (0..=6).collect(),
             session_minutes: (15, 180),
-            interests: vec!["music".into(), "memes".into(), "study".into(), "gaming".into()],
+            interests: vec![
+                "music".into(),
+                "memes".into(),
+                "study".into(),
+                "gaming".into(),
+            ],
         }
     }
 
@@ -78,7 +83,11 @@ impl Archetype {
             active_hours: (0..=23).collect(),
             active_days: (0..=6).collect(),
             session_minutes: (10, 300),
-            interests: vec!["politics".into(), "technology".into(), "current_events".into()],
+            interests: vec![
+                "politics".into(),
+                "technology".into(),
+                "current_events".into(),
+            ],
         }
     }
 
@@ -128,7 +137,9 @@ pub struct ProfileMixer {
 
 impl ProfileMixer {
     pub fn new() -> Self {
-        let mut m = Self { archetypes: HashMap::new() };
+        let mut m = Self {
+            archetypes: HashMap::new(),
+        };
         for archetype in [
             Archetype::office_worker(),
             Archetype::student(),
@@ -180,7 +191,8 @@ impl ProfileMixer {
         }
 
         let mut combined_weights: HashMap<String, f64> = HashMap::new();
-        let mut combined_interests: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut combined_interests: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         let mut combined_hours: std::collections::HashSet<u8> = std::collections::HashSet::new();
         let mut combined_days: std::collections::HashSet<u8> = std::collections::HashSet::new();
         let mut min_session: u32 = u32::MAX;
@@ -194,11 +206,21 @@ impl ProfileMixer {
                 for (k, v) in &arch.weights {
                     *combined_weights.entry(k.clone()).or_insert(0.0) += v * normalized;
                 }
-                for h in &arch.active_hours { combined_hours.insert(*h); }
-                for d in &arch.active_days { combined_days.insert(*d); }
-                for i in &arch.interests { combined_interests.insert(i.clone()); }
-                if arch.session_minutes.0 < min_session { min_session = arch.session_minutes.0; }
-                if arch.session_minutes.1 > max_session { max_session = arch.session_minutes.1; }
+                for h in &arch.active_hours {
+                    combined_hours.insert(*h);
+                }
+                for d in &arch.active_days {
+                    combined_days.insert(*d);
+                }
+                for i in &arch.interests {
+                    combined_interests.insert(i.clone());
+                }
+                if arch.session_minutes.0 < min_session {
+                    min_session = arch.session_minutes.0;
+                }
+                if arch.session_minutes.1 > max_session {
+                    max_session = arch.session_minutes.1;
+                }
                 label_parts.push(arch.label.clone());
                 applied += 1;
             }
@@ -241,7 +263,9 @@ impl ProfileMixer {
 }
 
 impl Default for ProfileMixer {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -269,10 +293,9 @@ mod tests {
     #[test]
     fn test_mix_two_archetypes() {
         let m = ProfileMixer::new();
-        let result = m.mix(&[
-            ("office".into(), 0.5),
-            ("developer".into(), 0.5),
-        ]).unwrap();
+        let result = m
+            .mix(&[("office".into(), 0.5), ("developer".into(), 0.5)])
+            .unwrap();
         assert!(result.weights.contains_key("browser"));
         assert!(result.weights.contains_key("source_code"));
     }
@@ -316,12 +339,13 @@ mod tests {
     #[test]
     fn test_mix_interests_union() {
         let m = ProfileMixer::new();
-        let result = m.mix(&[
-            ("office".into(), 0.5),
-            ("student".into(), 0.5),
-        ]).unwrap();
-        assert!(result.interests.contains(&"work".to_string())
-            || result.interests.contains(&"study".to_string()));
+        let result = m
+            .mix(&[("office".into(), 0.5), ("student".into(), 0.5)])
+            .unwrap();
+        assert!(
+            result.interests.contains(&"work".to_string())
+                || result.interests.contains(&"study".to_string())
+        );
     }
 
     #[test]
@@ -350,10 +374,7 @@ mod tests {
     #[test]
     fn test_mix_all_unknown_ids_returns_none() {
         let m = ProfileMixer::new();
-        let result = m.mix(&[
-            ("ghost".into(), 1.0),
-            ("phantom".into(), 0.5),
-        ]);
+        let result = m.mix(&[("ghost".into(), 1.0), ("phantom".into(), 0.5)]);
         assert!(
             result.is_none(),
             "mix of only unknown ids must return None, got: {:?}",
@@ -368,10 +389,7 @@ mod tests {
         // exactly (after re-normalising over the surviving total).
         let m = ProfileMixer::new();
         let result = m
-            .mix(&[
-                ("office".into(), 0.5),
-                ("ghost".into(), 0.5),
-            ])
+            .mix(&[("office".into(), 0.5), ("ghost".into(), 0.5)])
             .expect("should still produce a result with one known id");
         // session_minutes should NOT be the sentinel pair.
         assert!(result.session_minutes.0 < result.session_minutes.1);

@@ -20,7 +20,9 @@ use engine_browser::{CookieGenerator, SearchGenerator};
 use engine_core::entropy::seeded_rng;
 use engine_core::profile::UserProfile;
 use engine_core::traits::{DataGenerator, GenerationContext};
-use engine_fs::files::{RecentDocumentEntry as FileEntry, RecentDocumentsGenerator as FileGenerator};
+use engine_fs::files::{
+    RecentDocumentEntry as FileEntry, RecentDocumentsGenerator as FileGenerator,
+};
 use engine_network::dns::{DnsQuery as DnsEntry, DnsQueryGenerator as DnsGenerator};
 
 // ============================================================================
@@ -49,7 +51,12 @@ fn domain_from_url(url: &str) -> String {
 }
 
 /// Generate N history entries with referrer chain build-up.
-fn make_history(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<HistoryEntry> {
+fn make_history(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<HistoryEntry> {
     let mut rng = seeded_rng(seed);
     let mut generator = HistoryGenerator::new();
     let mut entries = Vec::with_capacity(n);
@@ -67,7 +74,12 @@ fn make_history(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: 
 }
 
 /// Generate N cookie entries.
-fn make_cookies(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<CookieEntry> {
+fn make_cookies(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<CookieEntry> {
     let mut rng = seeded_rng(seed);
     let cookie_gen = CookieGenerator::new();
     let mut entries = Vec::with_capacity(n);
@@ -81,7 +93,12 @@ fn make_cookies(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: 
 }
 
 /// Generate N search entries.
-fn make_searches(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<SearchEntry> {
+fn make_searches(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<SearchEntry> {
     let mut rng = seeded_rng(seed);
     let search_gen = SearchGenerator::new();
     let mut entries = Vec::with_capacity(n);
@@ -109,7 +126,12 @@ fn make_dns(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64)
 }
 
 /// Generate N file entries.
-fn make_files(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<FileEntry> {
+fn make_files(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<FileEntry> {
     let mut rng = seeded_rng(seed);
     let file_gen = FileGenerator::new();
     let mut entries = Vec::with_capacity(n);
@@ -236,9 +258,7 @@ fn test_search_history_flow() {
                 let ref_domain = domain_from_url(referrer);
                 // Referrer should contain a search engine domain or any
                 // plausible referring URL (the generator uses recent_urls)
-                if search_engines.iter().any(|se| ref_domain.contains(se))
-                    || !referrer.is_empty()
-                {
+                if search_engines.iter().any(|se| ref_domain.contains(se)) || !referrer.is_empty() {
                     valid_search_referrers += 1;
                 }
             }
@@ -285,8 +305,7 @@ fn test_search_history_flow() {
     // categories (both driven by the same UserProfile interests)
     let history_domains: HashSet<String> =
         history.iter().map(|e| domain_from_url(&e.url)).collect();
-    let search_categories: HashSet<_> =
-        searches.iter().map(|s| &s.category).collect();
+    let search_categories: HashSet<_> = searches.iter().map(|s| &s.category).collect();
 
     // The profile has interests -- searches should generate queries in
     // those categories
@@ -320,10 +339,8 @@ fn test_dns_history_consistency() {
     let dns = make_dns(200, &profile, &ctx, 99);
 
     // Collect all domains from history
-    let history_domains: HashSet<String> = history
-        .iter()
-        .map(|e| domain_from_url(&e.url))
-        .collect();
+    let history_domains: HashSet<String> =
+        history.iter().map(|e| domain_from_url(&e.url)).collect();
 
     // Collect all domains from DNS
     let dns_domains: HashSet<String> = dns
@@ -378,11 +395,9 @@ fn test_dns_history_consistency() {
         "connectivity-check.ubuntu.com",
         "detectportal.firefox.com",
     ];
-    let has_infra = dns.iter().any(|e| {
-        infra_domains
-            .iter()
-            .any(|id| e.domain.contains(id))
-    });
+    let has_infra = dns
+        .iter()
+        .any(|e| infra_domains.iter().any(|id| e.domain.contains(id)));
     assert!(
         has_infra,
         "DNS should include infrastructure domains (NTP, OCSP, etc.) \
@@ -418,10 +433,7 @@ fn test_file_download_correlation() {
     let files = make_files(100, &profile, &ctx, 55);
 
     // The browsing window: earliest and latest history timestamps
-    let history_timestamps: Vec<i64> = history
-        .iter()
-        .map(|e| e.visit_time.timestamp())
-        .collect();
+    let history_timestamps: Vec<i64> = history.iter().map(|e| e.visit_time.timestamp()).collect();
     let browsing_start = *history_timestamps.iter().min().unwrap();
     let browsing_end = *history_timestamps.iter().max().unwrap();
 
@@ -456,7 +468,9 @@ fn test_file_download_correlation() {
             assert!(
                 file.accessed >= file.created && file.accessed <= ctx.now,
                 "download file accessed outside valid range: created={}, accessed={}, now={}",
-                file.created, file.accessed, ctx.now
+                file.created,
+                file.accessed,
+                ctx.now
             );
 
             download_valid += 1;
@@ -548,8 +562,7 @@ fn test_session_continuity() {
         sessions_checked += 1;
 
         // Count entries that have referrers pointing to URLs within the session
-        let session_urls: HashSet<&str> =
-            session.iter().map(|e| e.url.as_str()).collect();
+        let session_urls: HashSet<&str> = session.iter().map(|e| e.url.as_str()).collect();
         let session_domains: HashSet<String> =
             session.iter().map(|e| domain_from_url(&e.url)).collect();
 
@@ -574,8 +587,7 @@ fn test_session_continuity() {
     }
 
     if sessions_checked > 0 {
-        let coherence_pct =
-            (sessions_coherent as f64 / sessions_checked as f64) * 100.0;
+        let coherence_pct = (sessions_coherent as f64 / sessions_checked as f64) * 100.0;
         // At least 50% of multi-entry sessions should show coherence
         // (referrer chains or domain affinity)
         assert!(
@@ -618,8 +630,7 @@ fn test_timezone_consistency() {
     for entry in &history {
         let tz = entry.visit_time.timezone();
         assert_eq!(
-            tz,
-            Utc,
+            tz, Utc,
             "history entry has non-UTC timezone: {:?}",
             entry.visit_time
         );
@@ -748,7 +759,12 @@ fn test_timezone_consistency() {
 // ============================================================================
 
 /// Generate N bookmark entries.
-fn make_bookmarks(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<BookmarkEntry> {
+fn make_bookmarks(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<BookmarkEntry> {
     let mut rng = seeded_rng(seed);
     let generator = BookmarkGenerator::new();
     let mut entries = Vec::with_capacity(n);
@@ -762,7 +778,12 @@ fn make_bookmarks(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed
 }
 
 /// Generate N download entries.
-fn make_downloads(n: usize, profile: &UserProfile, ctx: &GenerationContext, seed: u64) -> Vec<DownloadEntry> {
+fn make_downloads(
+    n: usize,
+    profile: &UserProfile,
+    ctx: &GenerationContext,
+    seed: u64,
+) -> Vec<DownloadEntry> {
     let mut rng = seeded_rng(seed);
     let generator = DownloadGenerator::new();
     let mut entries = Vec::with_capacity(n);
@@ -793,16 +814,12 @@ fn test_bookmark_history_url_overlap() {
     let bookmarks = make_bookmarks(100, &profile, &ctx, 44);
 
     // Collect all registrable domains from history
-    let history_domains: HashSet<String> = history
-        .iter()
-        .map(|e| domain_from_url(&e.url))
-        .collect();
+    let history_domains: HashSet<String> =
+        history.iter().map(|e| domain_from_url(&e.url)).collect();
 
     // Collect all registrable domains from bookmarks
-    let bookmark_domains: HashSet<String> = bookmarks
-        .iter()
-        .map(|e| domain_from_url(&e.url))
-        .collect();
+    let bookmark_domains: HashSet<String> =
+        bookmarks.iter().map(|e| domain_from_url(&e.url)).collect();
 
     // Check overlap: how many bookmark domains also appear in history
     let mut overlap_count = 0u32;
@@ -847,10 +864,7 @@ fn test_bookmark_history_url_overlap() {
     }
 
     // Bookmark added_at should be within the browsing window
-    let history_timestamps: Vec<i64> = history
-        .iter()
-        .map(|e| e.visit_time.timestamp())
-        .collect();
+    let history_timestamps: Vec<i64> = history.iter().map(|e| e.visit_time.timestamp()).collect();
     let browsing_start = *history_timestamps.iter().min().unwrap();
     // Bookmarks can span up to 730 days, so we extend the window
     let extended_start = browsing_start - (730 * 86400);
@@ -890,10 +904,7 @@ fn test_download_timestamps_within_browsing_window() {
     let downloads = make_downloads(100, &profile, &ctx, 66);
 
     // Determine the browsing window from history
-    let history_timestamps: Vec<i64> = history
-        .iter()
-        .map(|e| e.visit_time.timestamp())
-        .collect();
+    let history_timestamps: Vec<i64> = history.iter().map(|e| e.visit_time.timestamp()).collect();
     let browsing_start = *history_timestamps.iter().min().unwrap();
     let browsing_end = *history_timestamps.iter().max().unwrap();
 

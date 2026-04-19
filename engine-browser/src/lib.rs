@@ -18,10 +18,10 @@ pub mod searches;
 
 mod url_corpus;
 
-pub use history::HistoryGenerator;
-pub use cookies::CookieGenerator;
-pub use searches::SearchGenerator;
-pub use bookmarks::BookmarkGenerator;
-pub use downloads::DownloadGenerator;
 pub use autofill::AutofillGenerator;
+pub use bookmarks::BookmarkGenerator;
+pub use cookies::CookieGenerator;
+pub use downloads::DownloadGenerator;
+pub use history::HistoryGenerator;
 pub use localstorage::LocalStorageGenerator;
+pub use searches::SearchGenerator;

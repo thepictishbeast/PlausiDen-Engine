@@ -278,11 +278,11 @@ impl HttpGenerator {
         let domain = DOMAINS
             .choose(rng)
             .copied()
-            .expect("DOMAINS is a non-empty const slice");
+            .expect("DOMAINS is a non-empty const slice"); // SAFETY: const slice
         let path = URL_PATHS
             .choose(rng)
             .copied()
-            .expect("URL_PATHS is a non-empty const slice");
+            .expect("URL_PATHS is a non-empty const slice"); // SAFETY: const slice
         format!("https://{domain}{path}")
     }
 
@@ -295,7 +295,7 @@ impl HttpGenerator {
             USER_AGENTS
                 .choose(rng)
                 .copied()
-                .expect("USER_AGENTS is non-empty")
+                .expect("USER_AGENTS is non-empty") // SAFETY: const slice
                 .into(),
         );
         h.insert(
@@ -303,7 +303,7 @@ impl HttpGenerator {
             ACCEPT_HEADERS
                 .choose(rng)
                 .copied()
-                .expect("ACCEPT_HEADERS is non-empty")
+                .expect("ACCEPT_HEADERS is non-empty") // SAFETY: const slice
                 .into(),
         );
         h.insert(
@@ -311,7 +311,7 @@ impl HttpGenerator {
             ACCEPT_LANGUAGES
                 .choose(rng)
                 .copied()
-                .expect("ACCEPT_LANGUAGES is non-empty")
+                .expect("ACCEPT_LANGUAGES is non-empty") // SAFETY: const slice
                 .into(),
         );
         h.insert("Accept-Encoding".into(), "gzip, deflate, br".into());
@@ -324,7 +324,7 @@ impl HttpGenerator {
                 REFERER_DOMAINS
                     .choose(rng)
                     .copied()
-                    .expect("REFERER_DOMAINS is non-empty")
+                    .expect("REFERER_DOMAINS is non-empty") // SAFETY: const slice
                     .into(),
             );
         }
@@ -362,7 +362,7 @@ impl HttpGenerator {
             CACHE_CONTROL_VALUES
                 .choose(rng)
                 .copied()
-                .expect("CACHE_CONTROL_VALUES is non-empty")
+                .expect("CACHE_CONTROL_VALUES is non-empty") // SAFETY: const slice
                 .into(),
         );
         h.insert("Server".into(), "cloudflare".into());
@@ -374,7 +374,7 @@ impl HttpGenerator {
             let name = cookie_names
                 .choose(rng)
                 .copied()
-                .expect("cookie_names array literal is non-empty");
+                .expect("cookie_names array literal is non-empty"); // SAFETY: array literal
             let val_len = Uniform::new_inclusive(8usize, 32).sample(rng);
             let val: String = (0..val_len)
                 .map(|_| {
@@ -448,7 +448,7 @@ impl DataGenerator for HttpGenerator {
         // SAFETY: CONTENT_TYPES is non-empty by construction.
         let (content_type, min_size, max_size) = CONTENT_TYPES
             .choose(rng)
-            .expect("CONTENT_TYPES is a non-empty const slice");
+            .expect("CONTENT_TYPES is a non-empty const slice"); // SAFETY: const slice
         let body_size_bytes = Uniform::new_inclusive(*min_size, *max_size).sample(rng);
 
         // For 304 Not Modified, body is empty

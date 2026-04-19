@@ -58,9 +58,9 @@ fn validate_timestamps(meta: &ArtifactMetadata) -> Result<()> {
 
     // No timestamps before 2020-01-01 — anything older is certainly wrong
     let min_timestamp = chrono::NaiveDate::from_ymd_opt(2020, 1, 1)
-        .unwrap()
+        .unwrap() // SAFETY: 2020-01-01 is a valid calendar date
         .and_hms_opt(0, 0, 0)
-        .unwrap()
+        .unwrap() // SAFETY: 00:00:00 is a valid time
         .and_utc();
 
     if meta.created_at < min_timestamp {

@@ -3,7 +3,6 @@
 //! Real keystroke dynamics are biometrically unique. Synthetic keystrokes
 //! must have realistic inter-key intervals, dwell times, and error rates.
 
-use chrono::{DateTime, Duration, Utc};
 use engine_core::error::{EngineError, Result};
 use engine_core::profile::UserProfile;
 use engine_core::traits::{

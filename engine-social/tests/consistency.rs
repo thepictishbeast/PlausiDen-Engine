@@ -10,7 +10,7 @@ use engine_social::activity::{ActionType, ActivityGenerator, SocialActivity};
 use engine_social::content::{ContentGenerator, ContentPost, ContentType};
 use engine_social::engagement::{EngagementGenerator, EngagementSnapshot};
 use engine_social::messaging::{MessageDirection, MessageEntry, MessagingGenerator};
-use engine_social::notification::{NotificationGenerator, NotificationType, SocialNotification};
+use engine_social::notification::{NotificationGenerator, SocialNotification};
 
 /// Generic platform names used by the activity/notification generators.
 const ACTIVITY_PLATFORMS: &[&str] = &[

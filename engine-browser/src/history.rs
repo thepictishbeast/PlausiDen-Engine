@@ -120,10 +120,9 @@ impl HistoryGenerator {
             if parts.len() > 1 && !parts[1].is_empty() {
                 let path = parts[1]
                     .split('/')
-                    .last()
+                    .next_back()
                     .unwrap_or("Home")
-                    .replace('-', " ")
-                    .replace('_', " ");
+                    .replace(['-', '_'], " ");
                 let path = path.split('?').next().unwrap_or(&path);
                 if path.is_empty() {
                     domain_name.to_string()

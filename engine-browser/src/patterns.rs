@@ -152,7 +152,7 @@ pub fn inter_session_gap_secs(hour_of_day: u8, rng: &mut (impl RngCore + CryptoR
     // During active hours: 5-60 minute gaps
     // During evening: 30-120 minute gaps
     // During sleep: 4-8 hour gaps
-    let (min, max) = if hour_of_day < 7 || hour_of_day > 23 {
+    let (min, max) = if !(7..=23).contains(&hour_of_day) {
         (4 * 3600, 8 * 3600) // Sleep: 4-8 hours
     } else if hour_of_day > 20 {
         (30 * 60, 120 * 60) // Evening: 30-120 min

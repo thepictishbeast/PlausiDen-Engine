@@ -912,7 +912,7 @@ fn test_download_timestamps_within_browsing_window() {
     // days and the download generator up to 90 days, both from context.now.
     // So all downloads should be within 90 days before context.now.
     let download_window_start = ctx.now.timestamp() - (91 * 86400);
-    let download_window_end = ctx.now.timestamp();
+    let _download_window_end = ctx.now.timestamp();
 
     let mut within_browsing = 0u32;
     let mut total = 0u32;

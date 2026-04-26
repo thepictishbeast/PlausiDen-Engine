@@ -128,7 +128,7 @@ fn validate_size_bounds(bytes: &[u8], meta: &ArtifactMetadata) -> Result<()> {
     // Metadata size_bytes should roughly match actual size (within 10x)
     if meta.size_bytes > 0 {
         let ratio = bytes.len() as f64 / meta.size_bytes as f64;
-        if ratio > 10.0 || ratio < 0.1 {
+        if !(0.1..=10.0).contains(&ratio) {
             tracing::warn!(
                 "[PARANOIA] size mismatch: metadata says {} bytes, actual {} bytes (ratio {:.1})",
                 meta.size_bytes,

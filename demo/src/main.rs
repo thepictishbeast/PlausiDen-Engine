@@ -16,7 +16,7 @@ use engine_core::entropy::seeded_rng;
 use engine_core::paranoia;
 use engine_core::profile::{
     ActivitySchedule, DemographicProfile, DeviceProfile, InterestCategory, Locale,
-    OccupationCategory, RiskLevel, UserProfile, UserProfileBuilder,
+    OccupationCategory, RiskLevel, UserProfileBuilder,
 };
 use engine_core::schedule::OrganicScheduler;
 use engine_core::traits::{DataGenerator, GenerationContext};

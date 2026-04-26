@@ -9,10 +9,12 @@ use serde::{Deserialize, Serialize};
 
 /// Controls how aggressively data is generated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum RiskLevel {
     /// Background noise — blends in, minimal resource usage.
     Low,
     /// Noticeable volume — covers most forensic targets.
+    #[default]
     Medium,
     /// Aggressive generation — targets all data categories.
     High,
@@ -32,11 +34,6 @@ impl RiskLevel {
     }
 }
 
-impl Default for RiskLevel {
-    fn default() -> Self {
-        Self::Medium
-    }
-}
 
 /// Broad demographic category affecting data patterns.
 #[derive(Debug, Clone, Serialize, Deserialize)]

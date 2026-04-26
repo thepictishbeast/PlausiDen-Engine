@@ -97,7 +97,7 @@ impl ArtifactValidator {
                             results[*idx].push(ValidationIssue {
                                 field: field.clone(),
                                 rule: "Unique".into(),
-                                message: format!("duplicate value within batch"),
+                                message: "duplicate value within batch".to_string(),
                                 severity: Severity::Error,
                             });
                         }

@@ -406,13 +406,12 @@ impl Artifact for NotificationEntry {
                 reason: "notification has neither title nor body".into(),
             });
         }
-        if let Some(lat) = self.interaction_latency {
-            if lat < Duration::zero() {
+        if let Some(lat) = self.interaction_latency
+            && lat < Duration::zero() {
                 return Err(EngineError::ImplausibleArtifact {
                     reason: "negative interaction latency".into(),
                 });
             }
-        }
         if self.interacted && self.interaction_latency.is_none() {
             return Err(EngineError::ImplausibleArtifact {
                 reason: "interacted=true but no latency recorded".into(),

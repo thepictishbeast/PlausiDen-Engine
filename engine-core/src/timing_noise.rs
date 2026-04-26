@@ -125,7 +125,7 @@ mod tests {
         let model = NoiseModel::Uniform { min: 5, max: 10 };
         for _ in 0..100 {
             let d = n.sample_delta_secs(&model);
-            assert!(d >= 5 && d <= 10);
+            assert!((5..=10).contains(&d));
         }
     }
 
@@ -175,8 +175,8 @@ mod tests {
     fn test_peak_hours() {
         let n = TimingNoiser::new(42);
         let ts = Utc::now().with_hour(10).unwrap();
-        assert!(n.in_peak_hours(&ts, &vec![9, 10, 11]));
-        assert!(!n.in_peak_hours(&ts, &vec![2, 3, 4]));
+        assert!(n.in_peak_hours(&ts, &[9, 10, 11]));
+        assert!(!n.in_peak_hours(&ts, &[2, 3, 4]));
     }
 
     #[test]

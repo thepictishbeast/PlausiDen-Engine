@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_analyze_too_low() {
-        let report = analyze(&vec![0u8; 100]);
+        let report = analyze(&[0u8; 100]);
         assert_eq!(report.assessment, Assessment::TooLow);
     }
 

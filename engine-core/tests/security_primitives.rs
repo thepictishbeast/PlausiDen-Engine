@@ -58,7 +58,7 @@ fn deadman_fires_trigger_erasure() {
 
     // Host dispatcher hands the key to erase(), receives a receipt.
     let sk = SigningKey::generate(&mut OsRng);
-    let receipt = ErasureReceipt::sign(key_id, now as i64, ErasureReason::Deadman, &sk);
+    let receipt = ErasureReceipt::sign(key_id, now, ErasureReason::Deadman, &sk);
 
     // Receipt verifies with the signing key's public half.
     receipt

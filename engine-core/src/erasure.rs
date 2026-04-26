@@ -180,7 +180,7 @@ impl ErasableKey {
     /// placeholder — Ed25519 signing lands when the engine's signing
     /// keys are provisioned (see task #22 follow-on).
     pub fn erase(self, reason: ErasureReason) -> Result<ErasureReceipt> {
-        let key_id = self.id.clone();
+        let key_id = self.id;
         // Self drops here — ZeroizeOnDrop wipes material, the Drop impl
         // below munlocks.
         let erased_at = std::time::SystemTime::now()

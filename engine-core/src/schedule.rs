@@ -95,7 +95,7 @@ impl OrganicScheduler {
             // Within a session, intervals are shorter (2-30 seconds)
             let intra_session = Uniform::new_inclusive(2u64, 30u64);
             let gap = intra_session.sample(rng);
-            current = current + Duration::seconds(gap as i64);
+            current += Duration::seconds(gap as i64);
             timestamps.push(current);
         }
 
@@ -279,7 +279,7 @@ mod tests {
         fn prop_circadian_factor_bounded(hour in 0u8..24) {
             let scheduler = test_scheduler();
             let factor = scheduler.circadian_factor(hour);
-            prop_assert!(factor >= 0.0 && factor <= 1.0,
+            prop_assert!((0.0..=1.0).contains(&factor),
                 "circadian factor {} for hour {} is out of [0.0, 1.0]", factor, hour);
         }
     }
@@ -327,7 +327,7 @@ mod tests {
         for hour in 0..24u8 {
             let factor = scheduler.circadian_factor(hour);
             assert!(
-                factor >= 0.0 && factor <= 1.0,
+                (0.0..=1.0).contains(&factor),
                 "circadian factor {} for hour {} out of bounds with midnight-crossing schedule",
                 factor,
                 hour,

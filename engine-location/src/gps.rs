@@ -761,7 +761,7 @@ mod tests {
             let speed = GpsTraceGenerator::speed_for_mode(MovementMode::Walking, &mut rng);
             // Walking: 3-6 km/h = 0.83-1.67 m/s
             assert!(
-                speed >= 0.83 && speed <= 1.67,
+                (0.83..=1.67).contains(&speed),
                 "walking speed {speed} m/s out of range [0.83, 1.67]",
             );
         }
@@ -775,7 +775,7 @@ mod tests {
             let speed = GpsTraceGenerator::speed_for_mode(MovementMode::Driving, &mut rng);
             // Driving: 30-80 km/h = 8.33-22.22 m/s
             assert!(
-                speed >= 8.33 && speed <= 22.22,
+                (8.33..=22.22).contains(&speed),
                 "driving speed {speed} m/s out of range [8.33, 22.22]",
             );
         }

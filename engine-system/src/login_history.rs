@@ -78,13 +78,12 @@ impl Artifact for LoginEntry {
             });
         }
         // Logout must be after login.
-        if let Some(lt) = self.logout_time {
-            if lt < self.login_time {
+        if let Some(lt) = self.logout_time
+            && lt < self.login_time {
                 return Err(EngineError::ImplausibleArtifact {
                     reason: format!("logout time ({lt}) before login time ({})", self.login_time),
                 });
             }
-        }
         Ok(())
     }
 
@@ -402,14 +401,12 @@ mod tests {
                 .expect("generation ok");
             let bytes = artifact.to_bytes().expect("serialize ok");
             let entry: LoginEntry = serde_json::from_slice(&bytes).expect("deserialize ok");
-            if entry.session_type == SessionType::Ssh {
-                if let Some(duration) = entry.session_duration() {
-                    if duration.num_minutes() <= 30 {
+            if entry.session_type == SessionType::Ssh
+                && let Some(duration) = entry.session_duration()
+                    && duration.num_minutes() <= 30 {
                         found_short_ssh = true;
                         break;
                     }
-                }
-            }
         }
         assert!(
             found_short_ssh,
@@ -430,14 +427,12 @@ mod tests {
                 .expect("generation ok");
             let bytes = artifact.to_bytes().expect("serialize ok");
             let entry: LoginEntry = serde_json::from_slice(&bytes).expect("deserialize ok");
-            if entry.session_type == SessionType::Gui {
-                if let Some(duration) = entry.session_duration() {
-                    if duration.num_hours() >= 2 {
+            if entry.session_type == SessionType::Gui
+                && let Some(duration) = entry.session_duration()
+                    && duration.num_hours() >= 2 {
                         found_long_gui = true;
                         break;
                     }
-                }
-            }
         }
         assert!(
             found_long_gui,
@@ -458,12 +453,11 @@ mod tests {
                 .expect("generation ok");
             let bytes = artifact.to_bytes().expect("serialize ok");
             let entry: LoginEntry = serde_json::from_slice(&bytes).expect("deserialize ok");
-            if let Some(duration) = entry.session_duration() {
-                if duration.num_hours() >= 12 {
+            if let Some(duration) = entry.session_duration()
+                && duration.num_hours() >= 12 {
                     found_overnight = true;
                     break;
                 }
-            }
         }
         assert!(
             found_overnight,

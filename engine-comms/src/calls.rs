@@ -384,7 +384,7 @@ mod tests {
             let entry: CallEntry = serde_json::from_slice(&bytes).unwrap();
 
             let hour = entry.call_time.hour();
-            if hour >= 7 && hour < 23 {
+            if (7..23).contains(&hour) {
                 waking_calls += 1;
             } else {
                 sleep_calls += 1;

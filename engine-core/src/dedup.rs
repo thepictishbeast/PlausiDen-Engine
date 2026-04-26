@@ -97,15 +97,15 @@ impl ArtifactDeduplicator {
                     rec.count += 1;
                     rec.last_seen = now;
                     self.suppressed += 1;
-                    return DedupResult::Suppressed {
+                    DedupResult::Suppressed {
                         reason: SuppressReason::ExactMatch,
-                    };
+                    }
                 } else {
                     // Outside window — reset.
                     rec.count = 1;
                     rec.last_seen = now;
                     self.allowed += 1;
-                    return DedupResult::Allowed;
+                    DedupResult::Allowed
                 }
             }
             std::collections::hash_map::Entry::Vacant(v) => {

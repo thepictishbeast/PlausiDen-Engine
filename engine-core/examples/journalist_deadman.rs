@@ -44,7 +44,7 @@ fn main() {
     // ---------------------------------------------------------------
     let device_key = ErasableKey::new_in_memory([0x42; 32])
         .expect("journalist_deadman: in-memory ErasableKey must construct on a dev machine");
-    let key_id: KeyId = device_key.id.clone();
+    let key_id: KeyId = device_key.id;
     println!("[1] Created device key id={:?}", key_id);
 
     // An Ed25519 signing key is used to sign ErasureReceipts so the
@@ -72,7 +72,7 @@ fn main() {
         duress: vec![DuressEntry {
             hash: duress_hash.clone(),
             response: DuressResponse::SilentErase {
-                key_ids: vec![key_id.clone()],
+                key_ids: vec![key_id],
             },
             label: Some("under-coercion unlock".into()),
         }],
@@ -113,7 +113,7 @@ fn main() {
         warning_seconds: 4 * 3600, // 4h before: warn user
         action: TriggerAction::Composite(vec![
             TriggerAction::EraseKey {
-                key_ids: vec![key_id.clone()],
+                key_ids: vec![key_id],
             },
             TriggerAction::AlertContacts {
                 channels: vec!["signal://+15555551234".into()],
@@ -165,7 +165,7 @@ fn main() {
     // from the erased device_key in step 1, then signed the receipt with
     // its long-lived signing key. ErasureReceipt::sign handles that.
     let signed = engine_core::erasure::ErasureReceipt::sign(
-        receipt.key_id.clone(),
+        receipt.key_id,
         erased_at,
         receipt.reason,
         &signing_key,

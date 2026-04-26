@@ -108,7 +108,7 @@ impl DataCategory {
     /// error if a new DataCategory variant is added without
     /// updating the slice. It is otherwise unused.
     #[allow(dead_code)]
-    fn _all_variants_covered_check(&self) -> () {
+    fn _all_variants_covered_check(&self) {
         match self {
             Self::BrowserActivity => (),
             Self::FileSystem => (),

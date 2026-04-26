@@ -318,7 +318,7 @@ fn all_location_timestamps_within_same_window() {
 
         let drift_days = (reference_now - entry.datetime_original).num_days();
         assert!(
-            drift_days >= 0 && drift_days <= 365,
+            (0..=365).contains(&drift_days),
             "seed {seed}: EXIF timestamp {drift_days} days from now, expected [0, 365]",
         );
     }

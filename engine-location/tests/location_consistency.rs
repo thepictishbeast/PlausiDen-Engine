@@ -12,10 +12,12 @@ use engine_location::exif::{ExifEntry, ExifGenerator};
 use engine_location::gps::GpsTraceGenerator;
 use engine_location::wifi::{WifiGenerator, WifiSighting};
 
-/// Continental US latitude bounds.
+/// Continental US latitude bounds. Test assertions add ±0.5° tolerance
+/// to absorb the random drift our generators inject around seeded city
+/// centres (+/-0.02° per step, accumulating up to ~0.5° over a trace).
 const US_LAT_MIN: f64 = 24.5;
 const US_LAT_MAX: f64 = 49.0;
-/// Continental US longitude bounds.
+/// Continental US longitude bounds. Same ±0.5° tolerance rationale.
 const US_LON_MIN: f64 = -125.0;
 const US_LON_MAX: f64 = -66.9;
 
@@ -60,15 +62,15 @@ fn gps_coordinates_within_continental_us() {
         let bytes = artifact.to_bytes().unwrap();
         let entry: engine_location::GpsPoint = serde_json::from_slice(&bytes).unwrap();
 
-        // GPS seeds from city centers, which are all within US bounds.
-        // Small offsets (+/-0.02 deg) keep them inside.
+        // GPS seeds from city centres (always inside US_LAT/LON bounds);
+        // ±0.5° tolerance covers per-step random drift.
         assert!(
-            entry.lat >= 24.0 && entry.lat <= 50.0,
+            entry.lat >= US_LAT_MIN - 0.5 && entry.lat <= US_LAT_MAX + 0.5,
             "seed {seed}: latitude {:.6} outside US region",
             entry.lat,
         );
         assert!(
-            entry.lon >= -126.0 && entry.lon <= -66.0,
+            entry.lon >= US_LON_MIN - 0.5 && entry.lon <= US_LON_MAX + 0.5,
             "seed {seed}: longitude {:.6} outside US region",
             entry.lon,
         );

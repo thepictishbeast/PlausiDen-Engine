@@ -327,7 +327,11 @@ mod tests {
             id: "gamer".into(),
             label: "Gamer".into(),
             weights: HashMap::new(),
-            active_hours: (18..=2).collect(),
+            // Gamer: 6pm-2am wraps midnight; chain the two halves so we
+            // don't end up with a reversed-empty range that silently
+            // produces zero hours (clippy::reversed_empty_ranges fires
+            // on the naive (18..=2)).
+            active_hours: (18..=23).chain(0..=2).collect(),
             active_days: (0..=6).collect(),
             session_minutes: (60, 360),
             interests: vec!["games".into()],

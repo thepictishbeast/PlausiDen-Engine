@@ -407,11 +407,12 @@ impl Artifact for NotificationEntry {
             });
         }
         if let Some(lat) = self.interaction_latency
-            && lat < Duration::zero() {
-                return Err(EngineError::ImplausibleArtifact {
-                    reason: "negative interaction latency".into(),
-                });
-            }
+            && lat < Duration::zero()
+        {
+            return Err(EngineError::ImplausibleArtifact {
+                reason: "negative interaction latency".into(),
+            });
+        }
         if self.interacted && self.interaction_latency.is_none() {
             return Err(EngineError::ImplausibleArtifact {
                 reason: "interacted=true but no latency recorded".into(),

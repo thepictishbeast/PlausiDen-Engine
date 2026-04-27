@@ -8,8 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Controls how aggressively data is generated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RiskLevel {
     /// Background noise — blends in, minimal resource usage.
     Low,
@@ -33,7 +32,6 @@ impl RiskLevel {
         }
     }
 }
-
 
 /// Broad demographic category affecting data patterns.
 #[derive(Debug, Clone, Serialize, Deserialize)]

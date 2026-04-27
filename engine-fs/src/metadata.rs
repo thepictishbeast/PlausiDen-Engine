@@ -289,7 +289,11 @@ impl DataGenerator for FileMetadataGenerator {
         let inode = Uniform::new_inclusive(100_000u64, 9_999_999).sample(rng);
         let hard_links = if tpl.ext.is_empty() {
             1
-        } else if rng.gen_bool(0.1) { 2 } else { 1 };
+        } else if rng.gen_bool(0.1) {
+            2
+        } else {
+            1
+        };
 
         // Timestamps: created 1-365 days ago.
         let days_ago = Uniform::new_inclusive(1i64, 365).sample(rng);

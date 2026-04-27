@@ -21,7 +21,17 @@ url = { workspace = true }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["Window", "Performance"] }
+# Two getrandom majors are pulled in transitively (0.2 via rand 0.8.x +
+# rand_core 0.6 + ed25519-dalek 2.x; 0.3 via the wasm-engine path).
+# Each major gates wasm32 support behind a different feature: 0.2 uses
+# `js`, 0.3 uses `wasm_js`. We must pull both with the right feature to
+# get cargo's feature-unification to flip the wasm32 guard. Without
+# the 0.2 entry the build fails with `compile_error!("the wasm*-
+# unknown-unknown targets are not supported by default ...")`.
+# REGRESSION-GUARD: 2026-04-27 — do not collapse to a single version
+# until the rand 0.8 → 0.9 migration retires the 0.2 transitive line.
 getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 proptest = { workspace = true }

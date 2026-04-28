@@ -157,8 +157,9 @@ proptest! {
 
 fn arb_simple_action() -> impl Strategy<Value = TriggerAction> {
     prop_oneof![
-        vec(any::<u8>(), 0..=4)
-            .prop_map(|_| TriggerAction::EraseKey { key_ids: vec![KeyId::new()] }),
+        vec(any::<u8>(), 0..=4).prop_map(|_| TriggerAction::EraseKey {
+            key_ids: vec![KeyId::new()]
+        }),
         vec("[a-z0-9:/.@+-]{0,32}", 0..=4)
             .prop_map(|channels| TriggerAction::AlertContacts { channels }),
         vec("[a-z0-9-]{0,32}", 0..=4)

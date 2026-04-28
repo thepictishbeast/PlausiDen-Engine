@@ -15,6 +15,7 @@
 //!
 //! Run with `cargo test --test json_deserialization_fuzz -p engine-core`.
 
+use engine_core::deadman::{DeadmanConfig, TriggerAction};
 use engine_core::duress::{DuressConfig, DuressEntry, DuressResponse};
 use engine_core::erasure::{ErasureReason, ErasureReceipt, KeyId};
 use proptest::collection::vec;
@@ -139,6 +140,95 @@ proptest! {
     fn receipt_large_input_terminates(bytes in vec(any::<u8>(), 0..=65_536)) {
         let start = std::time::Instant::now();
         let _ = serde_json::from_slice::<ErasureReceipt>(&bytes);
+        prop_assert!(
+            start.elapsed() < std::time::Duration::from_millis(500),
+            "deserialize took {:?}", start.elapsed(),
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DeadmanConfig fuzz
+//
+// DeadmanConfig deserializes from disk at host arm time. A malformed
+// or forged config (especially via the recursive Composite TriggerAction
+// arm) must surface as Err, never panic.
+// ---------------------------------------------------------------------------
+
+fn arb_simple_action() -> impl Strategy<Value = TriggerAction> {
+    prop_oneof![
+        vec(any::<u8>(), 0..=4)
+            .prop_map(|_| TriggerAction::EraseKey { key_ids: vec![KeyId::new()] }),
+        vec("[a-z0-9:/.@+-]{0,32}", 0..=4)
+            .prop_map(|channels| TriggerAction::AlertContacts { channels }),
+        vec("[a-z0-9-]{0,32}", 0..=4)
+            .prop_map(|fragment_ids| TriggerAction::SwarmDestroy { fragment_ids }),
+        "[a-z0-9_-]{1,32}".prop_map(|name| TriggerAction::CustomHook { name }),
+    ]
+}
+
+fn arb_action() -> impl Strategy<Value = TriggerAction> {
+    // Composite is recursive — bound depth + breadth so the strategy
+    // doesn't blow the stack. One level of nesting exercises the
+    // recursive serde path without spending the whole proptest
+    // budget on tree-shape cases.
+    prop_oneof![
+        arb_simple_action(),
+        vec(arb_simple_action(), 0..=4).prop_map(TriggerAction::Composite),
+    ]
+}
+
+fn arb_deadman_config() -> impl Strategy<Value = DeadmanConfig> {
+    (
+        any::<u64>(),
+        any::<u64>(),
+        arb_action(),
+        any::<i64>(),
+        any::<bool>(),
+    )
+        .prop_map(
+            |(dead_seconds, warning_seconds, action, last_checkin_unix, armed)| DeadmanConfig {
+                dead_seconds,
+                warning_seconds,
+                action,
+                last_checkin_unix,
+                armed,
+            },
+        )
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(2_000))]
+
+    #[test]
+    fn deadman_from_bytes_never_panics(bytes in vec(any::<u8>(), 0..=4096)) {
+        let _ = serde_json::from_slice::<DeadmanConfig>(&bytes);
+    }
+
+    #[test]
+    fn deadman_from_str_never_panics(s in ".*") {
+        let _ = serde_json::from_str::<DeadmanConfig>(&s);
+    }
+
+    /// Roundtrip preserves the shape — including across the recursive
+    /// Composite TriggerAction arm.
+    #[test]
+    fn deadman_roundtrip_preserves_shape(cfg in arb_deadman_config()) {
+        let json = serde_json::to_string(&cfg).expect("serialize must succeed");
+        let decoded: DeadmanConfig =
+            serde_json::from_str(&json).expect("our own output must parse back");
+        prop_assert_eq!(cfg.dead_seconds, decoded.dead_seconds);
+        prop_assert_eq!(cfg.warning_seconds, decoded.warning_seconds);
+        prop_assert_eq!(cfg.last_checkin_unix, decoded.last_checkin_unix);
+        prop_assert_eq!(cfg.armed, decoded.armed);
+    }
+
+    /// Forged 64KiB blobs (notably nested-Composite bombs) must not
+    /// pin a host's CPU. Same 500ms wall-clock budget as the others.
+    #[test]
+    fn deadman_large_input_terminates(bytes in vec(any::<u8>(), 0..=65_536)) {
+        let start = std::time::Instant::now();
+        let _ = serde_json::from_slice::<DeadmanConfig>(&bytes);
         prop_assert!(
             start.elapsed() < std::time::Duration::from_millis(500),
             "deserialize took {:?}", start.elapsed(),

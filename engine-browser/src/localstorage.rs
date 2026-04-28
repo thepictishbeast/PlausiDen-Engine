@@ -21,7 +21,7 @@ use serde::Serialize;
 pub struct LocalStorageEntry {
     /// Artifact metadata.
     pub meta: ArtifactMetadata,
-    /// Origin domain that stored this entry (e.g., "https://www.example.com").
+    /// Origin domain that stored this entry (e.g., `https://www.example.com`).
     pub origin: String,
     /// localStorage key.
     pub key: String,

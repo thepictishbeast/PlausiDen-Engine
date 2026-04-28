@@ -24,8 +24,8 @@
 //! Tests in this module use hand-crafted synthetic vectors so
 //! the statistical math can be validated independently of any
 //! real-world training corpus. When a real corpus becomes
-//! available, plug it in via [`Distinguisher::score`] — the
-//! framework does not care where the samples come from.
+//! available, plug it in via [`score`] — the framework does not
+//! care where the samples come from.
 
 use serde::{Deserialize, Serialize};
 

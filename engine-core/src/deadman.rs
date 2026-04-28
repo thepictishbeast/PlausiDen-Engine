@@ -1,8 +1,8 @@
 //! # Dead-man switch.
 //!
 //! A user configures a dead-man switch with a max-silent-time. If the
-//! user doesn't [`check_in`] within that window, the configured
-//! [`TriggerAction`] fires. Use cases:
+//! user doesn't [`DeadmanConfig::check_in`] within that window, the
+//! configured [`TriggerAction`] fires. Use cases:
 //!
 //! - Activists who want key material destroyed if they are detained.
 //! - Journalists who want a draft published if they go silent.
@@ -68,8 +68,8 @@ pub enum TriggerAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeadmanConfig {
     /// How long the user may remain silent before the trigger fires.
-    /// Stored as seconds for serde simplicity; [`duration`] returns
-    /// it as a `Duration`.
+    /// Stored as seconds for serde simplicity; [`DeadmanConfig::duration`]
+    /// returns it as a `Duration`.
     pub dead_seconds: u64,
 
     /// Threshold before expiry at which the host should warn the user
@@ -83,12 +83,12 @@ pub struct DeadmanConfig {
     /// Unix-epoch seconds of the most recent check-in. A freshly
     /// constructed config has `last_checkin_unix == 0`, which means
     /// the timer has not started yet — the host should call
-    /// [`check_in`] once at arm time.
+    /// [`DeadmanConfig::check_in`] once at arm time.
     pub last_checkin_unix: i64,
 
     /// Whether the switch is currently armed. Host flips this via
-    /// [`arm`] / [`disarm`]. Disarmed switches do not fire regardless
-    /// of elapsed time.
+    /// [`DeadmanConfig::arm`] / [`DeadmanConfig::disarm`]. Disarmed
+    /// switches do not fire regardless of elapsed time.
     pub armed: bool,
 }
 

@@ -115,6 +115,10 @@ impl ErasableKey {
     /// callers on Windows should not treat `KeyStorage::Memory` as
     /// providing swap-resistance until VirtualLock lands.
     pub fn new_in_memory(material: [u8; 32]) -> Result<Self> {
+        // `mut` is needed for the unix mlock path (as_mut_ptr); on wasm32
+        // and other targets without that block the binding is read-only,
+        // so the warning would fire. Suppress only on the no-mlock paths.
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut boxed: Box<[u8; 32]> = Box::new(material);
 
         #[cfg(unix)]

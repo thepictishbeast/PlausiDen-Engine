@@ -32,6 +32,11 @@ web-sys = { version = "0.3", features = ["Window", "Performance"] }
 # until the rand 0.8 → 0.9 migration retires the 0.2 transitive line.
 getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+# uuid 1.x defers wasm32 randomness to a feature the way getrandom does.
+# `js` makes it use the browser's Web Crypto via getrandom_02.
+# REGRESSION-GUARD: 2026-04-27 — same cargo-features-unification trick;
+# remove when uuid no longer ships its own wasm32 compile_error!.
+uuid = { version = "1", features = ["js"] }
 
 [dev-dependencies]
 proptest = { workspace = true }

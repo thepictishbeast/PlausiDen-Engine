@@ -99,6 +99,19 @@ struct MetadataTemplate {
     has_origin: bool,
     /// Application that typically creates this file type.
     creator_app: Option<&'static str>,
+    /// Whether this file type is created by user action (documents,
+    /// downloads, configs the user touches) vs by system processes
+    /// (syslog, package-manager-installed binaries, /tmp scratch).
+    /// User-initiated file timestamps follow the user's circadian
+    /// activity pattern; system-initiated files don't (a syslog
+    /// entry at 3am is normal). The metadata generator routes
+    /// timestamp generation accordingly.
+    /// SECURITY: a forensic analyst comparing file mtimes against
+    /// the user's known wake/sleep pattern would flag a `report.docx`
+    /// modified at 3am as implausible — but a `syslog` rotated then
+    /// is expected. The split removes the forensic signal for
+    /// user files while preserving plausibility for system files.
+    user_initiated: bool,
 }
 
 const METADATA_TEMPLATES: &[MetadataTemplate] = &[
@@ -113,6 +126,7 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "user",
         has_origin: false,
         creator_app: Some("libreoffice"),
+        user_initiated: true,
     },
     // Downloaded PDFs (have download origin xattrs).
     MetadataTemplate {
@@ -133,6 +147,7 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "user",
         has_origin: true,
         creator_app: None,
+        user_initiated: true,
     },
     // Downloaded images.
     MetadataTemplate {
@@ -145,8 +160,10 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "user",
         has_origin: true,
         creator_app: None,
+        user_initiated: true,
     },
-    // Config files.
+    // Config files. Created/touched by user actions (settings UI,
+    // preferences dialogs, dotfile edits) so they follow circadian.
     MetadataTemplate {
         dir: "/home/user/.config",
         names: &["settings", "config", "preferences", "user"],
@@ -157,6 +174,7 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "user",
         has_origin: false,
         creator_app: None,
+        user_initiated: true,
     },
     // Spreadsheets.
     MetadataTemplate {
@@ -169,8 +187,10 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "user",
         has_origin: false,
         creator_app: Some("libreoffice"),
+        user_initiated: true,
     },
     // System logs (read by forensics for timeline corroboration).
+    // syslog rotates on its own schedule; a 3am log entry is normal.
     MetadataTemplate {
         dir: "/var/log",
         names: &["syslog", "auth", "kern", "daemon", "messages"],
@@ -181,8 +201,11 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "adm",
         has_origin: false,
         creator_app: None,
+        user_initiated: false,
     },
-    // Executables.
+    // Executables. Installed by package manager during system updates
+    // (often run as cron/auto-update at off-hours), not by the user
+    // pressing Save at 2pm.
     MetadataTemplate {
         dir: "/usr/bin",
         names: &["python3", "node", "git", "curl", "wget", "vim"],
@@ -193,8 +216,11 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "root",
         has_origin: false,
         creator_app: None,
+        user_initiated: false,
     },
-    // Temp files.
+    // Temp files. Created by background processes (browser cache,
+    // application scratch) on whatever schedule the process needs;
+    // not user-driven.
     MetadataTemplate {
         dir: "/tmp",
         names: &["temp_output", "cache_data", "session", "upload"],
@@ -205,6 +231,7 @@ const METADATA_TEMPLATES: &[MetadataTemplate] = &[
         group: "user",
         has_origin: false,
         creator_app: None,
+        user_initiated: false,
     },
 ];
 
@@ -265,7 +292,7 @@ impl Default for FileMetadataGenerator {
 impl DataGenerator for FileMetadataGenerator {
     fn generate(
         &self,
-        _profile: &UserProfile,
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
@@ -295,9 +322,23 @@ impl DataGenerator for FileMetadataGenerator {
             1
         };
 
-        // Timestamps: created 1-365 days ago.
+        // Timestamps: created 1-365 days ago. User-initiated files
+        // (documents, downloads, configs the user touches) snap to a
+        // circadian-active hour from the user's profile via
+        // `engine_core::schedule::pick_active_timestamp`. System-
+        // initiated files (logs, package-installed binaries, /tmp
+        // scratch) keep the uniform-random hour distribution because
+        // they're created by background processes on their own
+        // schedule (a 3am syslog rotation is normal; a 3am
+        // report.docx is implausible).
         let days_ago = Uniform::new_inclusive(1i64, 365).sample(rng);
-        let created = context.now - Duration::days(days_ago);
+        let target_date = context.now - Duration::days(days_ago);
+        let created = if tpl.user_initiated {
+            engine_core::schedule::pick_active_timestamp(profile, target_date, rng)
+                .unwrap_or(target_date)
+        } else {
+            target_date
+        };
 
         // Modified: between created and now.
         let mod_offset_secs = Uniform::new_inclusive(0i64, days_ago * 86400).sample(rng);
@@ -500,5 +541,65 @@ mod tests {
                 .validate_plausibility()
                 .expect("plausibility failed");
         }
+    }
+
+    /// Forensic-plausibility regression: file metadata for
+    /// user-initiated paths (Documents/, Downloads/, .config/) must
+    /// cluster `created` timestamps in circadian-active hours. A
+    /// `report.docx` modified at 3am by a user whose profile sleeps
+    /// then would be a forensic flag.
+    ///
+    /// System-initiated paths (/var/log, /usr/bin, /tmp) are
+    /// EXCLUDED from this assertion — they're created by background
+    /// processes on schedules unrelated to the user's circadian
+    /// pattern (a syslog rotation at 3am is normal).
+    ///
+    /// SECURITY: this test enforces the user_initiated split added
+    /// alongside it. A future code change that drops the split
+    /// (back to uniform-random hours for everything) would trip
+    /// this test.
+    #[test]
+    fn test_user_initiated_files_cluster_in_active_hours() {
+        use engine_core::profile::ActivitySchedule;
+        use engine_core::schedule::OrganicScheduler;
+
+        let generator = FileMetadataGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+        let scheduler =
+            OrganicScheduler::new(ActivitySchedule::default(), profile.risk_level);
+
+        // User-initiated parent dirs.
+        let user_dirs = ["/home/user/Documents", "/home/user/Downloads", "/home/user/.config"];
+
+        let mut user_total = 0;
+        let mut user_active = 0;
+        for seed in 0..2000u64 {
+            let mut rng = seeded_rng(seed);
+            let artifact = generator
+                .generate(&profile, &ctx, &mut rng)
+                .expect("generation failed");
+            let bytes = artifact.to_bytes().expect("to_bytes failed");
+            let entry: FileMetadataEntry = serde_json::from_slice(&bytes).expect("deserialize");
+            let in_user_dir = user_dirs
+                .iter()
+                .any(|d| entry.path.starts_with(d));
+            if in_user_dir {
+                user_total += 1;
+                if scheduler.is_active_hour(entry.created) {
+                    user_active += 1;
+                }
+            }
+        }
+
+        assert!(user_total >= 200, "sample did not yield enough user-initiated files: {user_total}");
+        let pct = user_active * 100 / user_total;
+        assert!(
+            pct >= 80,
+            "expected ≥80% of user-initiated file mtimes in active hours, got {}/{} ({}%)",
+            user_active,
+            user_total,
+            pct
+        );
     }
 }

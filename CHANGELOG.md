@@ -38,13 +38,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `OrganicScheduler::activity_factor()` newly public so external
   generators can read the circadian weighting without holding a
   full scheduler instance.
-- DownloadGenerator, BookmarkGenerator, AutofillGenerator
-  (engine-browser) and SmsGenerator, EmailHeaderGenerator
-  (engine-comms) all snap their `created_at`/`added_at`/
-  `started_at`/`timestamp` fields to circadian-active hours via
-  the new helper. Removes a forensic-detectable signal where
-  synthetic 3am downloads/SMS/emails would have been flagged
+- 7 generators across 4 crates now snap their timestamps to
+  circadian-active hours via the new helper:
+  * engine-browser: DownloadGenerator, BookmarkGenerator, AutofillGenerator
+  * engine-comms: SmsGenerator, EmailHeaderGenerator
+  * engine-fs: FileMetadataGenerator (user-initiated paths only;
+    /var/log, /usr/bin, /tmp keep uniform-random hours because
+    they're created by background processes on schedules unrelated
+    to the user's circadian)
+  * engine-system: LoginHistoryGenerator (start time only; SSH
+    session-length bimodal distribution unchanged)
+  Removes a forensic-detectable signal where synthetic 3am
+  downloads/SMS/emails/file-mtimes/logins would have been flagged
   against a user's known wake/sleep pattern.
+- engine-fs metadata template gains a `user_initiated: bool` field
+  to distinguish user-action files (Documents, Downloads, .config)
+  from system-process files (logs, executables, /tmp). Pinned by
+  test_user_initiated_files_cluster_in_active_hours (≥80% in
+  active hours).
 - SECURITY: night-owl profiles (wake=22, sleep=6) now correctly
   produce midnight artifacts instead of implausibly clustering
   at 8am — the previous hand-rolled per-generator distributions

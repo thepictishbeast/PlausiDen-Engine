@@ -697,6 +697,75 @@ mod tests {
         assert!(differ, "different seeds must produce different artifacts");
     }
 
+    /// Cross-artifact correlation regression: across a 500-artifact
+    /// browser session, every download URL must come from a domain
+    /// the user has plausibly visited. Asserts every download's
+    /// host is covered by at least one history host via
+    /// `url_corpus::download_covered_by`.
+    ///
+    /// SECURITY: End-to-end regression for task #40. The
+    /// download-template anchor invariant in engine-browser proves
+    /// the corpus has anchors for every template; this test proves
+    /// the runtime actually produces internally consistent batches —
+    /// not a single download domain ever shows up that the visited
+    /// history doesn't also contain.
+    #[test]
+    fn test_downloads_are_always_anchored_in_history() {
+        use engine_browser::url_corpus;
+        use serde_json::Value;
+
+        let mut pipeline = browser_pipeline(2026);
+        let artifacts = pipeline.generate_batch(500);
+
+        // Collect every history-entry URL and every download URL.
+        let mut history_urls: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        let mut download_hosts: Vec<String> = Vec::new();
+
+        for art in &artifacts {
+            let Ok(v) = serde_json::from_slice::<Value>(&art.bytes) else {
+                continue;
+            };
+            // Heuristic: download artifacts have `filename` + `url`;
+            // history artifacts have `url` + `transition` (or similar).
+            let url = match v.get("url").and_then(|x| x.as_str()) {
+                Some(u) => u,
+                None => continue,
+            };
+            if v.get("filename").is_some() {
+                let host = url
+                    .split_once("://")
+                    .map_or(url, |(_, r)| r)
+                    .split(['/', '?', '#'])
+                    .next()
+                    .unwrap_or(url);
+                download_hosts.push(host.to_string());
+            } else {
+                history_urls.insert(url.to_string());
+            }
+        }
+
+        // For every download host, at least one history URL must
+        // cover it via the same matching used in the anchor test.
+        for dl_host in &download_hosts {
+            let covered = history_urls
+                .iter()
+                .any(|h_url| url_corpus::download_covered_by(dl_host, h_url));
+            assert!(
+                covered,
+                "download host {:?} has no history-URL anchor in the same session; first-20 history URLs: {:?}",
+                dl_host,
+                history_urls.iter().take(20).collect::<Vec<_>>(),
+            );
+        }
+
+        // Sanity: the session must have generated SOMETHING to test.
+        assert!(
+            !download_hosts.is_empty() || !history_urls.is_empty(),
+            "session generated zero correlatable artifacts"
+        );
+    }
+
     #[test]
     fn test_injection_targets_all_map_to_browser() {
         let targets = [

@@ -16,7 +16,7 @@ pub mod localstorage;
 pub mod patterns;
 pub mod searches;
 
-mod url_corpus;
+pub mod url_corpus;
 
 pub use autofill::AutofillGenerator;
 pub use bookmarks::BookmarkGenerator;

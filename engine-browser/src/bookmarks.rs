@@ -84,7 +84,7 @@ impl Default for BookmarkGenerator {
 impl DataGenerator for BookmarkGenerator {
     fn generate(
         &self,
-        _profile: &UserProfile,
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
@@ -93,8 +93,13 @@ impl DataGenerator for BookmarkGenerator {
         let (url, title, folder) = BOOKMARK_SITES
             .choose(rng)
             .expect("BOOKMARK_SITES is a non-empty const slice");
+        // Same forensic-plausibility rationale as DownloadGenerator:
+        // bookmarks added at 3 AM by a user whose circadian profile
+        // sleeps then would be flagged. Pick a day-in-the-past then
+        // snap the hour to a circadian-active slot.
         let days_ago = Uniform::new_inclusive(1i64, 730).sample(rng);
-        let added_at = context.now - Duration::days(days_ago);
+        let target_date = context.now - Duration::days(days_ago);
+        let added_at = engine_core::schedule::pick_active_timestamp(profile, target_date, rng)?;
         let meta = ArtifactMetadata::new(DataCategory::BrowserActivity, added_at, added_at, 256)?;
 
         let entry = BookmarkEntry {

@@ -3,6 +3,7 @@
 use chrono::{DateTime, Duration, Utc};
 use engine_core::error::{EngineError, Result};
 use engine_core::profile::UserProfile;
+use engine_core::schedule::pick_active_timestamp;
 use engine_core::traits::{
     Artifact, ArtifactMetadata, DataCategory, DataGenerator, GenerationContext, ResourceCost,
 };
@@ -156,7 +157,7 @@ impl Default for DownloadGenerator {
 impl DataGenerator for DownloadGenerator {
     fn generate(
         &self,
-        _profile: &UserProfile,
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
@@ -169,8 +170,18 @@ impl DataGenerator for DownloadGenerator {
         let url = format!("https://{}{}{}", tpl.domain, tpl.path, filename);
         let size = Uniform::new_inclusive(tpl.min_size, tpl.max_size).sample(rng);
 
+        // Pick a calendar day in the recent past, then snap the
+        // hour-of-day to a circadian-active slot for `profile`. The
+        // day-and-hour split ensures distinct downloads land on
+        // different days *and* respect the user's wake/sleep cycle.
+        // SECURITY: a forensic analyst comparing the download log
+        // against the user's circadian baseline cannot flag synthetic
+        // 3 AM downloads when the timestamp distribution mirrors
+        // genuine activity. See `pick_active_timestamp` in engine-core
+        // for the weighting rationale.
         let days_ago = Uniform::new_inclusive(1i64, 90).sample(rng);
-        let started_at = context.now - Duration::days(days_ago);
+        let target_date = context.now - Duration::days(days_ago);
+        let started_at = pick_active_timestamp(profile, target_date, rng)?;
         // Download duration based on size (simulate ~10 MB/s connection)
         let download_secs = (size / 10_000_000).max(1);
         let completed_at = started_at + Duration::seconds(download_secs as i64);
@@ -256,5 +267,42 @@ mod tests {
             let duration = (e.completed_at - e.started_at).num_seconds();
             assert!(duration >= 1, "download should take at least 1 second");
         }
+    }
+
+    /// Forensic-plausibility regression: downloads must cluster in
+    /// the user's circadian-active window. Previously the start time
+    /// was sampled uniformly across the whole 24h clock, leaving a
+    /// detectable signal for a forensic analyst comparing the
+    /// download log against the user's known wake/sleep pattern.
+    /// REGRESSION-GUARD: ≥80% of 1000 sampled downloads must land
+    /// in the active hours of the default profile.
+    #[test]
+    fn test_downloads_cluster_in_active_hours() {
+        use engine_core::profile::ActivitySchedule;
+        use engine_core::schedule::OrganicScheduler;
+
+        let g = DownloadGenerator::new();
+        let p = UserProfile::default();
+        let c = GenerationContext::new();
+        let scheduler = OrganicScheduler::new(ActivitySchedule::default(), p.risk_level);
+        let mut active = 0;
+        let n = 1000;
+        for s in 0..n {
+            let mut r = seeded_rng(s);
+            let a = g.generate(&p, &c, &mut r).unwrap();
+            let b = a.to_bytes().unwrap();
+            let e: DownloadEntry = serde_json::from_slice(&b).unwrap();
+            if scheduler.is_active_hour(e.started_at) {
+                active += 1;
+            }
+        }
+        let pct = active * 100 / n;
+        assert!(
+            pct >= 80,
+            "expected ≥80% of downloads in active hours, got {}/{} ({}%)",
+            active,
+            n,
+            pct
+        );
     }
 }

@@ -147,6 +147,107 @@ impl OrganicScheduler {
         let adjusted = ((hour as i8 + self.schedule.timezone_offset_hours).rem_euclid(24)) as u8;
         adjusted >= self.schedule.wake_hour && adjusted <= self.schedule.sleep_hour
     }
+
+    /// Public read of the circadian activity factor for a given local
+    /// hour. Exposed so other crates' generators (downloads, etc.) can
+    /// weight their own timestamp choices toward plausible hours
+    /// without depending on the full scheduler state.
+    #[must_use]
+    pub fn activity_factor(&self, local_hour: u8) -> f64 {
+        self.circadian_factor(local_hour)
+    }
+}
+
+/// Pick a wall-clock timestamp on `target_date` whose hour-of-day is
+/// weighted by the user's circadian activity profile. Used by stateless
+/// generators (e.g. browser downloads) that need to stamp an artifact
+/// at a plausible hour without holding a full `OrganicScheduler`
+/// instance.
+///
+/// SECURITY: The forensic plausibility property this exists to enforce:
+/// a synthetic browser download stamped at 3 AM would be implausible
+/// for a user whose activity profile sleeps then. A forensic analyst
+/// comparing the download log against a circadian baseline would flag
+/// the inconsistency. Snapping the timestamp to a circadian-active
+/// hour erases that signal — the synthetic data clusters in the same
+/// hours genuine activity does.
+///
+/// The profile-aware path uses the profile's `activity_schedule` and
+/// `risk_level`. Set `risk_level = RiskLevel::Medium` if you don't
+/// have one — only the `activity_schedule` shapes the hour
+/// distribution; `risk_level` is unused here.
+///
+/// # Errors
+///
+/// Returns an error if `target_date` plus the chosen hour does not
+/// produce a valid `DateTime<Utc>` (theoretically impossible for any
+/// in-range hour).
+pub fn pick_active_timestamp(
+    profile: &crate::profile::UserProfile,
+    target_date: DateTime<Utc>,
+    rng: &mut (impl rand::RngCore + rand::CryptoRng),
+) -> Result<DateTime<Utc>> {
+    use rand::Rng;
+
+    // Build a per-hour weight table. The scheduler's `circadian_factor`
+    // already encodes the wake-up ramp, lunch dip, evening peak, and
+    // deep-sleep floor; we just sample from that distribution.
+    let scheduler =
+        OrganicScheduler::new(profile.activity_schedule.clone(), profile.risk_level);
+    let mut weights = [0f64; 24];
+    let mut total = 0f64;
+    for h in 0..24u8 {
+        // Convert UTC hour h to local hour by applying the profile's
+        // timezone offset (the same arithmetic OrganicScheduler does
+        // internally). `activity_factor` expects the local hour.
+        let local_hour =
+            ((h as i16 + profile.activity_schedule.timezone_offset_hours as i16)
+                .rem_euclid(24)) as u8;
+        let w = scheduler.activity_factor(local_hour);
+        weights[h as usize] = w;
+        total += w;
+    }
+    // SAFETY: total > 0 because activity_factor never returns negative
+    // and the deep-sleep floor is 0.05; even a fully-asleep day sums to
+    // > 0. If profile produced an all-zero schedule (impossible in the
+    // current shape) we would still avoid division-by-zero by
+    // short-circuiting to the noon hour.
+    if total <= 0.0 {
+        return target_date
+            .with_hour(12)
+            .and_then(|t| t.with_minute(0))
+            .and_then(|t| t.with_second(0))
+            .ok_or_else(|| crate::error::EngineError::ImplausibleArtifact {
+                reason: "could not construct fallback noon timestamp".into(),
+            });
+    }
+
+    // Sample one hour by inverse-CDF: roll [0, total), walk the
+    // cumulative sum until the running total exceeds the roll.
+    let roll: f64 = rng.gen_range(0.0..total);
+    let mut acc = 0f64;
+    let mut chosen_hour: u8 = 12;
+    for (h, w) in weights.iter().enumerate() {
+        acc += *w;
+        if roll < acc {
+            chosen_hour = h as u8;
+            break;
+        }
+    }
+
+    // Fill in minute + second uniformly so two artifacts within the
+    // same hour don't share a suspicious exact-minute timestamp.
+    let minute: u32 = rng.gen_range(0..60);
+    let second: u32 = rng.gen_range(0..60);
+    target_date
+        .with_hour(u32::from(chosen_hour))
+        .and_then(|t| t.with_minute(minute))
+        .and_then(|t| t.with_second(second))
+        .ok_or_else(|| crate::error::EngineError::ImplausibleArtifact {
+            reason: format!(
+                "could not construct timestamp for hour={chosen_hour} minute={minute} second={second}"
+            ),
+        })
 }
 
 /// Determines how many artifacts to generate per cycle based on risk level.
@@ -243,6 +344,57 @@ mod tests {
         assert!(low < medium);
         assert!(medium < high);
         assert!(high < maximum);
+    }
+
+    /// Pick 1000 active-timestamp samples and assert the bulk land in
+    /// circadian-active hours. The default profile (wake=7, sleep=23,
+    /// offset=-5 → UTC active window 12-04) gives a 17h active window;
+    /// at least 80% of samples should land within it.
+    #[test]
+    fn test_pick_active_timestamp_clusters_in_waking_hours() {
+        use crate::profile::UserProfile;
+        let profile = UserProfile::default();
+        let target = Utc::now();
+        let mut rng = ChaCha20Rng::seed_from_u64(42);
+        let scheduler =
+            OrganicScheduler::new(profile.activity_schedule.clone(), profile.risk_level);
+        let mut active = 0;
+        let n = 1000;
+        for _ in 0..n {
+            let ts = pick_active_timestamp(&profile, target, &mut rng).unwrap();
+            if scheduler.is_active_hour(ts) {
+                active += 1;
+            }
+        }
+        assert!(
+            active * 100 / n >= 80,
+            "expected ≥80% of timestamps in active hours, got {}/{}",
+            active,
+            n
+        );
+    }
+
+    /// Adjacent samples must not all collide on the same minute —
+    /// even within a single hour, the minute + second are randomized
+    /// so two artifacts don't fingerprint as "generator output."
+    #[test]
+    fn test_pick_active_timestamp_jitters_minute_and_second() {
+        use crate::profile::UserProfile;
+        use std::collections::HashSet;
+        let profile = UserProfile::default();
+        let target = Utc::now();
+        let mut rng = ChaCha20Rng::seed_from_u64(99);
+        let mut minutes = HashSet::new();
+        for _ in 0..50 {
+            let ts = pick_active_timestamp(&profile, target, &mut rng).unwrap();
+            minutes.insert(ts.minute());
+        }
+        // 50 draws over 60 possible minutes — should hit many.
+        assert!(
+            minutes.len() >= 20,
+            "expected diverse minutes, got {} unique values",
+            minutes.len()
+        );
     }
 
     // --- Property-based tests ---

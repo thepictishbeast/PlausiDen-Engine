@@ -561,4 +561,42 @@ mod tests {
             format!("{:?}", e2.session_type)
         );
     }
+
+    /// Forensic-plausibility regression: login start times must
+    /// cluster in circadian-active hours. A session starting at 3am
+    /// for a profile that sleeps then would be a forensic flag.
+    /// SSH/GUI/Local session-length distributions are unchanged;
+    /// what's pinned here is just the `login_time` field.
+    #[test]
+    fn test_login_start_times_cluster_in_active_hours() {
+        use engine_core::profile::ActivitySchedule;
+        use engine_core::schedule::OrganicScheduler;
+
+        let generator = LoginHistoryGenerator::new();
+        let profile = UserProfile::default();
+        let ctx = GenerationContext::new();
+        let scheduler =
+            OrganicScheduler::new(ActivitySchedule::default(), profile.risk_level);
+        let mut active = 0;
+        let n = 500;
+        for s in 0..n {
+            let mut rng = seeded_rng(s);
+            let artifact = generator
+                .generate(&profile, &ctx, &mut rng)
+                .expect("generation failed");
+            let bytes = artifact.to_bytes().expect("to_bytes failed");
+            let entry: LoginEntry = serde_json::from_slice(&bytes).expect("deserialize");
+            if scheduler.is_active_hour(entry.login_time) {
+                active += 1;
+            }
+        }
+        let pct = active * 100 / n;
+        assert!(
+            pct >= 80,
+            "expected ≥80% of login starts in active hours, got {}/{} ({}%)",
+            active,
+            n,
+            pct
+        );
+    }
 }

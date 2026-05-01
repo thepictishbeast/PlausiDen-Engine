@@ -28,6 +28,7 @@ pub mod paranoia;
 pub mod profile;
 pub mod profile_mixer;
 pub mod rate_governor;
+pub mod sandbox;
 pub mod schedule;
 pub mod seed_chain;
 pub mod timing_noise;

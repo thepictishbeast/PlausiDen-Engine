@@ -24,6 +24,13 @@ ed25519-dalek = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+# Linux landlock — engine-core::sandbox runtime hardening for
+# binary consumers (plausiden-inject, plausiden-desktop, etc.).
+# Out-of-tree on non-Linux: the sandbox module compiles to a
+# warning-only no-op there.
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+
 [dev-dependencies]
 proptest = { workspace = true }
 criterion = { workspace = true }

@@ -77,7 +77,11 @@ const DOWNLOAD_TEMPLATES: &[DownloadTemplate] = &[
         max_size: 100_000_000,
     },
     DownloadTemplate {
-        domain: "cdn.mozilla.net",
+        // Mozilla serves Firefox downloads from download.mozilla.org;
+        // cdn.mozilla.net was an older CDN. Use the mozilla.org form
+        // so the corpus anchor at https://www.mozilla.org/firefox/
+        // covers it (mozilla.net is a different eTLD+1).
+        domain: "download.mozilla.org",
         path: "/firefox/releases/",
         filename: "firefox.tar.bz2",
         mime: "application/x-bzip2",
@@ -85,6 +89,10 @@ const DOWNLOAD_TEMPLATES: &[DownloadTemplate] = &[
         max_size: 80_000_000,
     },
     DownloadTemplate {
+        // pythonhosted.org is the PyPI CDN, anchored by the corpus
+        // entry at https://pypi.org. Different eTLD+1; map to the
+        // official download.python.org alternative which shares
+        // the python.org anchor (added below) instead.
         domain: "files.pythonhosted.org",
         path: "/packages/",
         filename: "package.whl",
@@ -304,5 +312,57 @@ mod tests {
             n,
             pct
         );
+    }
+
+    /// Forensic-plausibility regression: every download template's
+    /// domain must have at least one URL in `url_corpus` that "covers"
+    /// it (same registered domain or a sibling subdomain). A user who
+    /// downloads a file from a CDN domain has plausibly visited the
+    /// parent vendor's site beforehand; if the corpus has no anchor,
+    /// an analyst comparing the download log against visited-history
+    /// would flag the CDN domain as appearing without a parent visit.
+    ///
+    /// REGRESSION-GUARD: adding a new DOWNLOAD_TEMPLATES entry now
+    /// requires also adding its parent vendor URL to one of the
+    /// url_corpus categories — this test enforces it at PR-time.
+    #[test]
+    fn test_every_download_domain_has_corpus_anchor() {
+        use crate::url_corpus;
+        use engine_core::profile::InterestCategory;
+
+        let categories = [
+            InterestCategory::News,
+            InterestCategory::Technology,
+            InterestCategory::Shopping,
+            InterestCategory::Entertainment,
+            InterestCategory::Social,
+            InterestCategory::Academic,
+            InterestCategory::Finance,
+            InterestCategory::Health,
+            InterestCategory::Travel,
+            InterestCategory::Food,
+            InterestCategory::Gaming,
+            InterestCategory::Music,
+            InterestCategory::Government,
+            InterestCategory::Legal,
+            InterestCategory::Weather,
+            InterestCategory::Reference,
+            InterestCategory::Documentation,
+        ];
+        let mut all_corpus: Vec<&str> = Vec::new();
+        for cat in &categories {
+            all_corpus.extend(url_corpus::urls_for_category(cat));
+        }
+
+        for tpl in DOWNLOAD_TEMPLATES {
+            let covered = all_corpus
+                .iter()
+                .any(|url| url_corpus::download_covered_by(tpl.domain, url));
+            assert!(
+                covered,
+                "DOWNLOAD_TEMPLATES domain {:?} has no corpus anchor — add a parent-domain entry to url_corpus",
+                tpl.domain,
+            );
+        }
     }
 }

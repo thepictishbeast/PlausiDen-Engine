@@ -259,6 +259,46 @@ mod tests {
         );
     }
 
+    /// Forensic-plausibility regression: cookies' domains must come
+    /// from the URL corpus (the same pool history visits draw from).
+    /// Without this property, cookies for never-visited domains
+    /// would surface — a forensic flag for a session where the
+    /// browser holds cookies from sites the history doesn't show.
+    ///
+    /// The cookie domain field is `.example.com`-shaped (leading
+    /// dot); we strip it for matching against the corpus's
+    /// scheme-and-host URL form.
+    #[test]
+    fn test_cookie_domains_anchor_in_url_corpus() {
+        use crate::url_corpus;
+        use engine_core::profile::InterestCategory;
+
+        let generator = CookieGenerator::new();
+        let mut profile = UserProfile::default();
+        // Pin to one interest so the test is deterministic about
+        // the candidate corpus pool.
+        profile.interests = vec![InterestCategory::Technology];
+        let ctx = GenerationContext::new();
+        let corpus_urls: Vec<&str> =
+            url_corpus::urls_for_category(&InterestCategory::Technology).iter().copied().collect();
+
+        for s in 0..200 {
+            let mut rng = seeded_rng(s);
+            let artifact = generator.generate(&profile, &ctx, &mut rng).unwrap();
+            let bytes = artifact.to_bytes().unwrap();
+            let cookie: CookieEntry = serde_json::from_slice(&bytes).unwrap();
+            let bare = cookie.domain.trim_start_matches('.');
+            let covered = corpus_urls
+                .iter()
+                .any(|url| url_corpus::download_covered_by(bare, url));
+            assert!(
+                covered,
+                "cookie domain {:?} not anchored to any Technology-corpus URL",
+                cookie.domain,
+            );
+        }
+    }
+
     #[test]
     fn test_cookie_expiry_after_creation() {
         let generator = CookieGenerator::new();

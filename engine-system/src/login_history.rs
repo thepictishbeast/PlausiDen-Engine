@@ -144,7 +144,7 @@ impl Default for LoginHistoryGenerator {
 impl DataGenerator for LoginHistoryGenerator {
     fn generate(
         &self,
-        _profile: &UserProfile,
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
@@ -191,14 +191,16 @@ impl DataGenerator for LoginHistoryGenerator {
             None
         };
 
-        // Place login within the last 30 days.
+        // Place login within the last 30 days. Snap to a circadian-
+        // active hour from the user's profile — login events that
+        // cluster at 3am for a profile that sleeps then would be a
+        // forensic signal. SSH sessions retain their own bimodal
+        // session-length distribution further down; what's
+        // circadian-aligned here is just when the session STARTED.
         let days_ago = Uniform::new_inclusive(0i64, 30).sample(rng);
-        let hours_offset = Uniform::new_inclusive(0i64, 23).sample(rng);
-        let minutes_offset = Uniform::new_inclusive(0i64, 59).sample(rng);
-        let login_time = context.now
-            - Duration::days(days_ago)
-            - Duration::hours(hours_offset)
-            - Duration::minutes(minutes_offset);
+        let target_date = context.now - Duration::days(days_ago);
+        let login_time = engine_core::schedule::pick_active_timestamp(profile, target_date, rng)
+            .unwrap_or(target_date);
 
         // Session duration depends on type.
         let session_secs = match session_type {

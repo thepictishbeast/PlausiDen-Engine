@@ -392,13 +392,35 @@ impl DataGenerator for AutofillGenerator {
         let field_value = Self::generate_field_value(field_type, rng);
         let form_url = Self::choose_form_url(profile, rng)?;
 
-        // Autofill entries are created some time in the past
-        let age_secs = Uniform::new_inclusive(60i64, 86400 * 90).sample(rng);
-        let created_at = context.now - Duration::seconds(age_secs);
+        // Autofill entries are created some time in the past — pick
+        // a calendar day in [1, 90] days ago, then snap to a
+        // circadian-active hour for the same forensic-plausibility
+        // rationale as DownloadGenerator/BookmarkGenerator. A user
+        // doesn't autofill credit-card forms at 3 AM unless they're
+        // a night owl, in which case the profile's wake/sleep window
+        // already encodes that.
+        let days_ago = Uniform::new_inclusive(1i64, 90).sample(rng);
+        let target_date = context.now - Duration::days(days_ago);
+        let created_at = engine_core::schedule::pick_active_timestamp(profile, target_date, rng)?;
 
-        // Last used between created_at and now
-        let used_offset = Uniform::new_inclusive(0i64, age_secs).sample(rng);
-        let last_used = created_at + Duration::seconds(used_offset);
+        // Last used between created_at and now, also snapped to an
+        // active hour. Re-derive age_secs after snapping so the
+        // usage-count correlation below stays meaningful.
+        let now_floor = context.now;
+        let last_used_target = if (now_floor - created_at).num_seconds() > 86_400 {
+            // Pick a separate active-hour day between created_at and now
+            let between_days =
+                Uniform::new_inclusive(0i64, days_ago).sample(rng);
+            let lu_target_date = context.now - Duration::days(between_days);
+            engine_core::schedule::pick_active_timestamp(profile, lu_target_date, rng)?
+                .min(now_floor)
+                .max(created_at)
+        } else {
+            // Same-day created/last-used; clamp to the [created, now] window
+            now_floor
+        };
+        let last_used = last_used_target;
+        let age_secs = (now_floor - created_at).num_seconds().max(60);
 
         // Usage count: correlated with age -- older entries used more
         let days_old = (age_secs / 86400).max(1);
@@ -590,6 +612,39 @@ mod tests {
                 "seed {seed}: last_used before created_at",
             );
         }
+    }
+
+    /// Forensic-plausibility regression: autofill entries' created_at
+    /// timestamps must cluster in circadian-active hours (same
+    /// rationale as the download cluster test).
+    #[test]
+    fn test_autofill_clusters_in_active_hours() {
+        use engine_core::profile::ActivitySchedule;
+        use engine_core::schedule::OrganicScheduler;
+
+        let g = AutofillGenerator::new();
+        let p = test_profile();
+        let c = GenerationContext::new();
+        let scheduler = OrganicScheduler::new(ActivitySchedule::default(), p.risk_level);
+        let mut active = 0;
+        let n = 1000;
+        for s in 0..n {
+            let mut r = seeded_rng(s);
+            let a = g.generate(&p, &c, &mut r).unwrap();
+            let b = a.to_bytes().unwrap();
+            let e: AutofillEntry = serde_json::from_slice(&b).unwrap();
+            if scheduler.is_active_hour(e.created_at) {
+                active += 1;
+            }
+        }
+        let pct = active * 100 / n;
+        assert!(
+            pct >= 80,
+            "expected ≥80% of autofill entries in active hours, got {}/{} ({}%)",
+            active,
+            n,
+            pct
+        );
     }
 
     #[test]

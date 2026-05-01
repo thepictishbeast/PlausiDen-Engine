@@ -785,11 +785,19 @@ mod tests {
     fn test_trace_1000_points_all_valid() {
         let mut gps = GpsTraceGenerator::new();
         let profile = test_profile();
-        let ctx = GenerationContext::new();
+        // BUG ASSUMPTION: 1000 points × stationary worst-case dt
+        // (300s) = 300_000s ≈ 83h forward of `now`. The metadata
+        // 24h-future cutoff would reject the tail of such a trace.
+        // REGRESSION-GUARD: anchor the context 4 days in the past
+        // so the trace ends comfortably before the 24h-future
+        // cutoff under every RNG outcome (typical 1000-point spread
+        // is ~17h, max ~83h; 4 days of headroom covers the worst
+        // case + 24h future buffer + any future module additions).
+        let ctx = GenerationContext::at(chrono::Utc::now() - chrono::Duration::days(4));
         let mut rng = seeded_rng(42);
 
         let entries = gps.generate_trace(&profile, &ctx, &mut rng, 1000);
-        assert!(entries.is_ok());
+        assert!(entries.is_ok(), "generate_trace returned error: {:?}", entries.err());
         let entries = entries.expect("checked above");
         assert_eq!(entries.len(), 1000);
 

@@ -651,10 +651,19 @@ mod tests {
     fn test_session_walks_through_past_time() {
         let before = Utc::now();
         let mut pipeline = browser_pipeline(42);
-        let report = pipeline.run_session(600);
+        // BUG ASSUMPTION: at default RiskLevel::Medium the base
+        // interval is 120s, but the circadian factor pushes it as
+        // long as 2400s during deep-sleep hours. A 600s session
+        // running when wall-clock `Utc::now()` lands in those hours
+        // can complete with 0 artifacts — flaky in CI.
+        // REGRESSION-GUARD: 6000s window keeps the assertion green
+        // across every UTC hour (>= 2 artifacts even at the lowest
+        // 0.05 activity factor), without coupling the test to a
+        // mocked clock.
+        let report = pipeline.run_session(6000);
         let after = Utc::now();
 
-        // The session is anchored at (now - 600s, now), so it must
+        // The session is anchored at (now - 6000s, now), so it must
         // have completed at or before the wall-clock `after`.
         // Sanity check that the call returned promptly (real test).
         let elapsed = (after - before).num_seconds();
@@ -666,7 +675,9 @@ mod tests {
         );
         assert!(
             report.total_generated >= 2,
-            "600s session should produce multiple artifacts",
+            "6000s session should produce multiple artifacts; got {} (start hour UTC: {})",
+            report.total_generated,
+            Utc::now().format("%H"),
         );
     }
 

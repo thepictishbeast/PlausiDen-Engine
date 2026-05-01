@@ -204,30 +204,22 @@ impl SmsGenerator {
     /// The device owner's phone number (consistent across a session).
     const OWNER_PHONE: &str = "(555) 555-0100";
 
-    /// Generate a timestamp for the SMS within the last 30 days.
+    /// Generate a timestamp for the SMS within the last 30 days. The
+    /// hour-of-day is sampled from the user's circadian profile via
+    /// `engine_core::schedule::pick_active_timestamp`, replacing the
+    /// previous hard-coded 85%-in-7am-11pm distribution which assumed
+    /// every user shared a single wake/sleep window. A night-owl
+    /// profile (wake=10, sleep=2) now correctly produces SMS at
+    /// midnight rather than implausibly clustering at 7am.
     fn generate_timestamp(
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> DateTime<Utc> {
         let day_offset = Uniform::new_inclusive(0i64, 29).sample(rng);
-        let base = context.now - Duration::days(day_offset);
-
-        // Messages cluster during waking hours (7am-11pm).
-        let hour = if Uniform::new_inclusive(0u32, 99).sample(rng) < 85 {
-            Uniform::new_inclusive(7u32, 22).sample(rng)
-        } else {
-            // Some late-night/early-morning messages.
-            let sleep_hours: Vec<u32> = (0..7).chain(23..24).collect();
-            *sleep_hours.choose(rng).unwrap_or(&2)
-        };
-
-        let minute = Uniform::new_inclusive(0u32, 59).sample(rng);
-        let second = Uniform::new_inclusive(0u32, 59).sample(rng);
-
-        base.date_naive()
-            .and_hms_opt(hour, minute, second)
-            .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc))
-            .unwrap_or(base)
+        let target = context.now - Duration::days(day_offset);
+        engine_core::schedule::pick_active_timestamp(profile, target, rng)
+            .unwrap_or(target)
     }
 }
 
@@ -240,7 +232,7 @@ impl Default for SmsGenerator {
 impl DataGenerator for SmsGenerator {
     fn generate(
         &self,
-        _profile: &UserProfile,
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
@@ -254,7 +246,7 @@ impl DataGenerator for SmsGenerator {
             .ok_or_else(|| EngineError::InvalidContext("empty message template pool".to_string()))?
             .to_string();
 
-        let timestamp = Self::generate_timestamp(context, rng);
+        let timestamp = Self::generate_timestamp(profile, context, rng);
 
         // 55% received, 45% sent.
         let direction = if Uniform::new_inclusive(0u32, 99).sample(rng) < 55 {

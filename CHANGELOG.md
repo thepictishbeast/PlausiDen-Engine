@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — runtime hardening (2026-05-01)
+
+**Sandbox facility for binary consumers (task #48)**
+- New `engine_core::sandbox` module exposes `lock_down(opts) ->
+  Result<()>` and `LockdownOpts { read_paths, write_paths }`.
+- On Linux, applies a landlock V1 ruleset that limits the calling
+  process's filesystem access to the supplied allowlist. After the
+  call, attempting to read/write outside the allowlist returns
+  EACCES regardless of file permissions or caller privileges.
+- On non-Linux, logs an `info` line and returns Ok(()) — sandbox
+  is the host runtime's responsibility (browser sandbox, JVM).
+- SECURITY: defends against an in-engine compromise (corpus supply-
+  chain attack, future bug, adversarial profile) — the blast
+  radius is bounded by the sandbox, not by the generator code.
+- Layered defence per the module docs: consumers should also drop
+  capabilities (PR_SET_NO_NEW_PRIVS), optionally apply a seccomp
+  filter, and run as an unprivileged user.
+- 2 unit tests pin the LockdownOpts API shape; actual landlock
+  enforcement is exercised in consumer binaries (cannot unit-test
+  because the call permanently restricts the test process).
+
 ### Added — forensic plausibility cycle (2026-05-01)
 
 **Cross-artifact correlation (task #40)**

@@ -6,6 +6,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — forensic plausibility cycle (2026-05-01)
+
+**Cross-artifact correlation (task #40)**
+- New `engine_core::schedule::pick_active_timestamp(profile,
+  target_date, rng)` — public helper that samples a hour-of-day
+  weighted by the user's `OrganicScheduler::activity_factor()`,
+  with random minute and second. Replaces every uniform-random
+  hour pattern across the browser/comms generators.
+- `OrganicScheduler::activity_factor()` newly public so external
+  generators can read the circadian weighting without holding a
+  full scheduler instance.
+- DownloadGenerator, BookmarkGenerator, AutofillGenerator
+  (engine-browser) and SmsGenerator, EmailHeaderGenerator
+  (engine-comms) all snap their `created_at`/`added_at`/
+  `started_at`/`timestamp` fields to circadian-active hours via
+  the new helper. Removes a forensic-detectable signal where
+  synthetic 3am downloads/SMS/emails would have been flagged
+  against a user's known wake/sleep pattern.
+- SECURITY: night-owl profiles (wake=22, sleep=6) now correctly
+  produce midnight artifacts instead of implausibly clustering
+  at 8am — the previous hand-rolled per-generator distributions
+  hard-coded business-hours assumptions.
+- Per-template anchor invariant: every domain in
+  `downloads::DOWNLOAD_TEMPLATES` must have at least one URL in
+  `url_corpus` that "covers" it (same registered domain or
+  sibling subdomain). Adding a new template without a matching
+  corpus anchor now fails CI. New helpers
+  `url_corpus::registered_domain` and
+  `url_corpus::download_covered_by` (with their own unit tests).
+- Software-vendor landing pages (mozilla.org/firefox/,
+  google.com/chrome/, libreoffice.org, documentfoundation.org,
+  ubuntu.com/download, zoom.us, rust-lang.org, pypi.org,
+  pythonhosted.org, unsplash.com) added to the Technology
+  category so each download template's parent vendor is
+  visitable as history.
+- `cdn.mozilla.net` template renamed to `download.mozilla.org`
+  (the modern Firefox download endpoint, shares the mozilla.org
+  eTLD+1 with the corpus anchor).
+- End-to-end correlation regression: `engine-pipeline::
+  test_downloads_are_always_anchored_in_history` runs a 500-
+  artifact session and asserts every emitted download URL has
+  a history URL on a covered domain. Three layers of defence
+  for the property; a future regression fails at the layer it
+  hits first.
+- `engine_browser::url_corpus` promoted from private to public
+  module so external tests can use the shared correlation
+  helpers.
+
+**Test stabilization**
+- `engine-pipeline::test_session_walks_through_past_time`: 600s
+  → 6000s window so the assertion stays green at every UTC hour
+  (deep-sleep adjusted_interval up to 2400s).
+- `engine-location::gps::tests::test_trace_1000_points_all_valid`:
+  context anchored 4 days in the past so the 1000-point trace
+  ends comfortably before the 24h-future cutoff under all RNG
+  outcomes.
+
+**Tests**: 638 → 646 across the workspace (+8 net).
+
 ### Added — security + testing cycle (2026-04-18)
 - **duress.rs proptests.** 4 new property tests × 2k cases each (8k
   total): `unconfigured_input_returns_nomatch`,

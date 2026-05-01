@@ -370,28 +370,20 @@ impl EmailHeaderGenerator {
         Ok(format!("<{ts}.{random_part}@{server}>"))
     }
 
-    /// Generate an email timestamp within the last 90 days.
+    /// Generate an email timestamp within the last 90 days. The
+    /// hour-of-day is sampled from the user's circadian profile via
+    /// `engine_core::schedule::pick_active_timestamp`, replacing the
+    /// previous hand-rolled 75%-in-8am-8pm heuristic which assumed
+    /// every user worked business hours.
     fn generate_sent_at(
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> DateTime<Utc> {
         let day_offset = Uniform::new_inclusive(0i64, 89).sample(rng);
-        let base = context.now - Duration::days(day_offset);
-
-        // Email is less circadian than SMS but still clusters during business hours.
-        let hour = if Uniform::new_inclusive(0u32, 99).sample(rng) < 75 {
-            Uniform::new_inclusive(8u32, 20).sample(rng)
-        } else {
-            Uniform::new_inclusive(0u32, 23).sample(rng)
-        };
-
-        let minute = Uniform::new_inclusive(0u32, 59).sample(rng);
-        let second = Uniform::new_inclusive(0u32, 59).sample(rng);
-
-        base.date_naive()
-            .and_hms_opt(hour, minute, second)
-            .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc))
-            .unwrap_or(base)
+        let target = context.now - Duration::days(day_offset);
+        engine_core::schedule::pick_active_timestamp(profile, target, rng)
+            .unwrap_or(target)
     }
 }
 
@@ -404,7 +396,7 @@ impl Default for EmailHeaderGenerator {
 impl DataGenerator for EmailHeaderGenerator {
     fn generate(
         &self,
-        _profile: &UserProfile,
+        profile: &UserProfile,
         context: &GenerationContext,
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Box<dyn Artifact>> {
@@ -426,7 +418,7 @@ impl DataGenerator for EmailHeaderGenerator {
             to = Self::generate_address(rng)?;
         }
         let subject = Self::generate_subject(rng)?;
-        let sent_at = Self::generate_sent_at(context, rng);
+        let sent_at = Self::generate_sent_at(profile, context, rng);
         let date = sent_at.format("%a, %d %b %Y %H:%M:%S +0000").to_string();
         let message_id = Self::generate_message_id(&sent_at, rng)?;
         let mime_version = "1.0".to_string();

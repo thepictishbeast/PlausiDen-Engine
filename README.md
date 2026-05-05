@@ -73,7 +73,7 @@ Windows gap, KDF responsibility, response-timing advice).
 ## Quick Start
 
 ```bash
-git clone https://github.com/redcaptian1917/PlausiDen-Engine.git
+git clone https://github.com/thepictishbeast/PlausiDen-Engine.git
 cd PlausiDen-Engine
 just check-all
 ```
